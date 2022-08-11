@@ -1,0 +1,8 @@
+# Binary
+*.o
+nuo
+
+# Dev
+*.log
+*.task
+Makefile
