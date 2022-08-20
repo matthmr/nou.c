@@ -4,12 +4,18 @@ Card game for the CLI written in C.
 
 ## Building
 
-Run `make nou` to build the program. `make` variables are:
+Run `./configure` then `make nou` to build the program. `make` variables are:
 
 - `CC` : the C compiler (gcc)
-- `CFLAGS` : additional flags to pass to the compiler ()
+- `CFLAGS` : flags to pass to the compiler ()
+- `CFLAGSADD`: additional flags to pass to the compiler (after those written by `./configure`) ()
 
-No further dependencies are needed besides `libc`.
+`./configure` flags are the same as `make` variables.
+
+Run `make docs` to compile the man documentation to `docs`.
+
+No further dependencies are needed besides `libc`. This project uses the `./configure` building
+system from [cproj](https://github.com/matthmr/cproj).
 
 ## Playing
 

@@ -14,11 +14,21 @@
 
 #  define BOTS 2
 #  define BOTSSTR "2"
-#  define SOFTLIM 100
+#  define SOFTLIM 1000
+#  define CMDBUFF 50
 #  define THINK_INTERVAL 500*1000 // 500 ms
 #  define TAKE_INTERVAL 500*1000 // 100 ms
 
+#  define ONES(x) ~(~(1<<(x))+1)
 
+typedef unsigned char uchar;
+typedef unsigned short ushort;
 typedef unsigned int uint;
+typedef unsigned long ulong;
+typedef unsigned char bool;
+
+#  ifndef NULL
+#    define NULL ((void*)0)
+#  endif
 
 #endif

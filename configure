@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 SET_FLAGS=(
-	'CC' 'CFLAGS' 'M4' 'MD2ROFF'
+	'CC' 'CFLAGS' 'M4' 'MD2ROFF' 'CFLAGSADD'
 )
 SET_FLAG_PREFIX='M4FLAG_conf_'
 

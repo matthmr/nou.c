@@ -5,4 +5,4 @@ nou
 # Dev
 *.log
 *.task
-Makefile
+make/*.mk

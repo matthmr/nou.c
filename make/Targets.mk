@@ -1,3 +1,3 @@
-nou: bots.o deck.o draw.o nou.o
+nou: nou.o bots.o deck.o draw.o 
+TARGETS:=nou 
 
-TARGETS:=nou

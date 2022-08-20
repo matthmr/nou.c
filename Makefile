@@ -7,11 +7,11 @@ DOCUMENTATION:=docs/nou.1
 
 $(OBJECTS):
 	@echo "[ .. ] Compiling \`$<'"
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(CFLAGSADD) -c $< -o $@
 
 $(TARGETS):
 	@echo "[ .. ] Linking to \`$@'"
-	$(CC) $(CFLAGS) $? -o $@
+	$(CC) $(CFLAGS) $(CFLAGSADD) $? -o $@
 
 docs/nou.1: docs/nou.md
 	@echo "[ .. ] Compiling man documentation"
@@ -19,7 +19,7 @@ docs/nou.1: docs/nou.md
 
 clean:
 	@echo "[ .. ] Cleaning working directory"
-	rm -rfv $(OBJECTS)
+	rm -rfv $(OBJECTS) $(TARGETS)
 
 clean-make:
 	@echo "[ .. ] Cleaning makefiles"
