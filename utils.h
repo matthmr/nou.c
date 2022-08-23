@@ -10,7 +10,7 @@
 #  define CPPLAYER 7
 #  define DECKS(p) ((((p)-1)/3)+1)
 #  define MOUNT(p) ((DECKS (p)*CPDECK)-CPPLAYER*p)
-#  define PLAYING(p) (CPPLAYER*p)
+#  define PLAYING(p) (CPPLAYER*(p))
 
 #  define BOTS 2
 #  define BOTSSTR "2"

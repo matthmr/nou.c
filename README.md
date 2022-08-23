@@ -10,7 +10,8 @@ Run `./configure` then `make nou` to build the program. `make` variables are:
 - `CFLAGS` : flags to pass to the compiler ()
 - `CFLAGSADD`: additional flags to pass to the compiler (after those written by `./configure`) ()
 
-`./configure` flags are the same as `make` variables.
+`./configure` flags are the same as `make` variables but in **lowercase**
+(for example `./configure --cc=clang`).
 
 Run `make docs` to compile the man documentation to `docs`.
 

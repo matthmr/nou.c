@@ -44,19 +44,19 @@ bool playable (Player* p, Card played) {
 	return false;
 }
 
-static Card* take_card (void) {
-	static Card* takr = NULL;
-	if (! takr) takr = card0;
-	else takr++;
-	if (takr->played + takr->playing) return takr = NULL;
-	else return takr;
+static inline Card* take_card (void) {
+	//static Card* takr = NULL;
+	if (! stacktop) stacktop = card0;
+	else stacktop++;
+	if (stacktop == decktop) return stacktop = NULL;
+	else return stacktop;
 }
 
-static void append (Player* p, Card* card) {
+static inline void append (Player* p, Card* card) {
 	if (p->cardi == (p->cardn+1)) {
-		p->cards = realloc (p->cards, (p->cardn + CARDN));
+		p->cards = realloc (p->cards, (p->cardn + CARDN) * sizeof (uint));
 	}
-	p->cards[p->cardi] = card - card0;
+	p->cards[p->cardi] = (card - card0);
 	p->cardi++;
 }
 
@@ -75,36 +75,80 @@ Gstat take (Player* p, uint am) {
 	return GCONT;
 }
 
-static void drop (Player* p, uint cardi) {
+static void psort (Player* p, uint cardi) {
+	uint cardn = player->cardn;
+	uint* buf = player->cards;
 
+	uint* sbuf = NULL;
+
+	uint i = 0, _i = 0;
+
+	for (; i < cardn; i++) {
+		if (! buf[i]) {
+			if (!sbuf) {
+				_i = i;
+				sbuf = &buf[i];
+			}
+		}
+		else if (sbuf) {
+			sbuf = NULL;
+			*sbuf = buf[i];
+			i = _i;
+		}
+	}
 }
 
-void play (Player* p, Card* card) {
-	top = card;
-	played (card);
-	drop (p, card - card0);
+static inline void drop (Player* p, uint cardi) {
+	p->cardi--;
+	psort (p, cardi);
 }
 
-static Ptag turn (void) {
-	if (dir == DIRCLOCKWISE) ;
+void play (Player* p, uint ci) {
+	Card* pc = &index (deckr.deck, p->cards[ci+1], deckr.cards);
+	top = pc;
+	played (pc);
+	drop (p, ci);
+}
+
+static Ptag turn (uint botn) {
+	if (dir == DIRCLOCKWISE) {
+
+	}
+	else {
+	}
 }
 
 static void gameinit (Deckr* deckr, uint botn) { // initiate the game
-	uint n = DECKS (botn+1);
+	uint n = DECKS (botn);
 	uint cards = n * CPDECK;
 	deckr->n = n;
 	deckr->cards = cards;
 	deckr->deck = malloc (cards * sizeof (Card));
-	deckr->playing = PLAYING (botn+1);
+	deckr->playing = PLAYING (botn);
 	deckr->played = 0;
+	decktop = &deckr->deck[n-1][CPDECK-1];
 	popdeck (deckr);
 	uint t = time (NULL);
 	seed = *(uint*) &botn;
 	seed = (reseedr (t) << 4) ^ t;
 	shuffle (deckr, deckr->cards);
 	popplayers (deckr, botn, deckr->cards);
-	sort (deckr);
+	//sort (deckr);
 	cmdbuff = calloc (CMDBUFF, sizeof (char));
+	uint ccardi;
+	draw: ccardi = seeded (deckr->cards - deckr->playing);
+	Card* ccard = &index (deckr->deck, ccardi, deckr->cards);
+	Number dnum = ccard->number;
+	if (ccard->suit == SPECIAL || (
+	    dnum == _K || dnum == _Q || dnum == _J
+	)) goto draw;
+	else {
+		Card tmp = *stacktop;
+		*stacktop = *ccard;
+		*ccard = tmp;
+		top = stacktop;
+		deckr->played++;
+	}
 	write (1, MSG (GAME_HEADER));
 }
 
@@ -112,49 +156,39 @@ static void cmdread (Cmd* cmd) {
 	read (0, cmd->cmdstr, CMDBUFF);
 }
 
-static inline Gstat update_game (Cmd* cmd) {
+static Gstat update_game (Cmd* cmd) {
+
 	switch (cmd->ac.cmd) {
 	case PLAY: play (cmd->p, cmd->ac.target); break;
 	case TAKE: take (cmd->p, cmd->ac.am); break;
 	}
-	return GCONT;
+
+	if (!cmd->p->cardi) return GEND; // player `p' wins!
+	else return GCONT;
 }
 
 static int gameloop (uint botn) { // main game loop
 	gameinit (&deckr, botn);
 
-	uint dcardi;
-	draw: dcardi = seeded (deckr.cards - deckr.playing);
-	Card* dcard = &index (deckr.deck, dcardi, deckr.cards);
-	Number dnum = dcard->number;
-	if (dcard->suit == SPECIAL || (
-	    dnum == _K || dnum == _Q || dnum == _J
-	)) goto draw; // keep trying to get a valid card
-	else {
-		played (dcard);
-		sort (&deckr);
-	}
-
 	Cmd cmd;
 	Gstat stat;
 
 	cmd.cmdstr = cmdbuff;
-	cmd.ac.target = NULL;
 
 	for (;;) {
-		if (turn () == PLAYER) {
+		if (turn (botn) == PLAYER) {
 			read: cmdread (&cmd);
 			switch (cmd.status) {
 			case CINVALID: goto read;
 			case CQUIT: goto end;
 			}
 			stat = update_game (&cmd);
-			if (stat == GDRAW || GEND) goto end;
+			if (stat == GDRAW || stat == GEND) goto end;
 		}
 		else {
 			bot_play (&cmd);
 			stat = update_game (&cmd);
-			if (stat == GDRAW || GEND) goto end;
+			if (stat == GDRAW || stat == GEND) goto end;
 		}
 		update_display ();
 	}
@@ -162,6 +196,7 @@ static int gameloop (uint botn) { // main game loop
 	end:
 	free (deckr.deck);
 	free (display.dis);
+	// wins (cmd->p);
 
 	return 0;
 }
@@ -187,7 +222,7 @@ int main (int argc, char** argv) {
 		else goto game;
 		bots = BOTS;
 	}
-	playern = bots;
+	playern = (bots++);
 
 	game: return gameloop (bots);
 }

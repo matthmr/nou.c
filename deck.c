@@ -17,37 +17,46 @@ Deckr deckr = {
 //Deck* deck = NULL;
 Card* top = NULL;
 Card* card0 = NULL;
+Card* stacktop = NULL, * decktop = NULL;
 
 Suit csuit;
+
 uint seed, reseed;
 
 static Player** playerringbuf;
 
-int sort (Deckr* deckr) { // sort the deck to make mount cards stack-like
+int sort (Deckr* deckr) { // sort the deck to make mount cards stack-like;
+                          // cards that are being played stay at low memory, otherwise high memory
+
+	// TODO: short circuit
+
 	Deck* deck = deckr->deck;
 	uint cardn = deckr->cards;
+	uint playing = deckr->playing;
 
-	Card* using = NULL;
+	Card* splaying = NULL;
 
 	uint i = 0, _i = 0;
 
 	for (; i < cardn; i++) {
-		if (index (deck, i, cardn).playing | index (deck, i, cardn).played) {
-			if (!using) {
+		if (! (index (deck, i, cardn).playing)) {
+			if (!splaying) {
 				_i = i;
-				using = &index (deck, i, cardn);
+				splaying = &index (deck, i, cardn);
 			}
 		}
-		else if (using) { // vacant <-> using
-			using = NULL;
+		else if (splaying) {
+			playing--;
+			splaying = NULL;
 			Card tmp = index (deck, i, cardn);
 			index (deck, i, cardn) = index (deck, _i, cardn);
 			index (deck, _i, cardn) = tmp;
 			i = _i;
 		}
+		if (!playing) break;
 	}
 
-	return using? NOCARDS: 0; // if there are no playable cards left
+	return splaying? NOCARDS: 0; // if there are no playable cards left
 }
 
 void popdeck (Deckr* deckr) { // populate the playing deck
@@ -61,19 +70,19 @@ void popdeck (Deckr* deckr) { // populate the playing deck
 		for (Number number = _A; number <= _J; number++) {
 			card.suit = suit;
 			card.number = number;
-			card.playing = card.played = 0;
+			card.playing = 0;
 			deck[i][c] = card;
 			c++;
 		}
 	//c++;
 	card.suit = SPECIAL;
 	card.number = _B;
-	card.playing = card.played = 0;
+	card.playing = 0;
 	deck[i][c] = card;
 	c++;
 	card.suit = SPECIAL;
 	card.number = _C;
-	card.playing = card.played = 0;
+	card.playing = 0;
 	deck[i][c] = card;
 	c = 0;
 	i++;
@@ -100,15 +109,16 @@ uint seedr (uint primr) { // seed our `seed' and `reseed' variables
 	return reseedr (reseed+1);
 }
 
-uint seeded (uint n) { // get `uint' values from our `seed' variable
+uint seeded (uint n) { // get `n' values from the `seed' variable
 	uint ret = seed % n;
 	seed = seedr (ret);
 	return ret;
 }
 
 void swap (Deck* deck, uint i, uint pcards) { // swap cards
-	uint _i = seeded (pcards) + i;
-	if (! (_i && (_i % pcards))) return;
+	//uint _i = seeded (pcards) + i;
+	uint _i = (seeded (pcards) + i) % pcards;
+	if (! _i) return;
 	Card tmp = index (deck, i, pcards);
 	index (deck, i, pcards) = index (deck, _i, pcards);
 	index (deck, _i, pcards) = tmp;
@@ -116,56 +126,59 @@ void swap (Deck* deck, uint i, uint pcards) { // swap cards
 
 void shuffle (Deckr* deckr, uint pcards) { // shuffle the playing deck
 	Deck* deck = deckr->deck;
-	for (uint i = 0; i < pcards; i++) swap (deck, i, pcards);
+	for (uint i = 0; i < pcards; i++)
+		swap (deck, i, pcards);
 }
 
-static void ringswap (Player** ring, uint i, uint botn) {
-	uint _i = seeded (botn) + i;
-	if (! (_i && (_i % botn))) return;
+static void ringswap (Player** ring, uint i, uint botn) { // swap the `playerbufring'
+	//uint _i = seeded (botn) + i;
+	uint _i = (seeded (botn) + i) % botn;
+	if (! _i) return;
 	Player* tmp = ring[i];
 	ring[i] = ring[_i];
 	ring[_i] = tmp;
 }
-static inline void ringshuffle (Player** ring, uint botn) {
-	for (uint i = 0; i < botn; i++) ringswap (ring, i, botn);
+
+static inline void ringshuffle (Player** ring, uint botn) { // shuffle the `playerbufring'
+	for (uint i = 0; i < botn; i++)
+		ringswap (ring, i, botn);
 }
 
-static inline void popplayer (void) { // populate the player's cards
+static void popbots (uint botn) { // populate bots
+	Player* bot;
+
 	player = &playerbuf[0];
 	player->tag = PLAYER;
 	player->bot = NULL;
 	player->cards = malloc (CARDN * sizeof (uint));
-	player->cardn = CPPLAYER;
+	player->cardn = CARDN; //CPPLAYER;
 	player->cardi = 0;
-}
 
-static void popbots (uint botn) {
-	Player* bot;
-	for (uint i = 1; i <= botn; i++) {
+	for (uint i = 1; i < botn; i++) {
 		bot = &playerbuf[i];
 		bot->tag = BOT;
 		bot->bot = NULL; // TODO
 		bot->cards = malloc (CARDN * sizeof (uint));
-		bot->cardn = CPPLAYER;
+		bot->cardn = CARDN; // CPPLAYER;
 		bot->cardi = 0;
 	}
 }
 
-static void drawcards (uint botn, uint cardn) {
+static void drawcards (uint botn, uint cardn) { // draw initial cards from the deck
 	for (uint cn = 0; cn < CPPLAYER; cn++) {
-		for (uint i = 0; i <= botn; i++) {
-			(void)take (playerringbuf[i], 1);
+		for (uint i = 0; i < botn; i++) {
+			(void) take (playerringbuf[i], 1);
 		}
 		ringshuffle (playerringbuf, botn);
 	}
 }
 
 void popplayers (Deckr* deckr, uint botn, uint cardn) { // populate the bots' cards
-	playerbuf = malloc ((botn + 1) * sizeof (Player));
-	playerringbuf = malloc ((botn + 1) * sizeof (Player*));
-	for (uint i = 0; i <= botn; i++) playerringbuf[i] = &playerbuf[i];
-	popplayer ();
+	playerbuf = malloc (botn  * sizeof (Player));
+	playerringbuf = malloc (botn * sizeof (Player*));
+	for (uint i = 0; i < botn; i++) playerringbuf[i] = &playerbuf[i];
 	popbots (botn);
+	ringshuffle (playerringbuf, botn);
 	drawcards (botn, cardn);
 	// NOTE: if a `play again?' option is ever added, this buffer will not have to be freed
 	free (playerringbuf);

@@ -32,8 +32,8 @@ typedef enum number {
 typedef struct card {
 	Suit suit;
 	Number number;
-	short playing;
-	short played;
+	bool playing;
+	// short played;
 } Card;
 
 typedef Card Deck[CPDECK];
@@ -49,9 +49,11 @@ extern Deckr deckr;
 extern uint seed, reseed;
 extern Card* top;
 extern Card* card0;
+extern Card* stacktop, * decktop;
+
+extern Suit csuit;
 
 extern Direction dir;
-extern Suit csuit;
 
 uint reseedr (uint);
 uint seedr (uint);
@@ -59,6 +61,7 @@ uint seeded (uint);
 
 void swap (Deck*, uint, uint);
 void shuffle (Deckr*, uint);
+void reshuffle (Deckr*, uint);
 
 void popplayers (Deckr*, uint, uint);
 

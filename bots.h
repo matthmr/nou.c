@@ -13,9 +13,11 @@ typedef enum {
 } Ptag;
 
 typedef struct player {
-	uint* cards, cardn, cardi;
-	Ptag tag;
-	Bot* bot;
+	uint* cards;
+	uint cardn, cardi; // @cardn: number of cards in the @cards buffer
+	                   // @cardi: number of owned cards
+	Ptag tag;          // @tag: player/bot tag
+	Bot* bot;          // @bote: bot instance
 } Player;
 
 typedef enum {
@@ -27,7 +29,8 @@ enum cmd {TAKE, PLAY};
 typedef struct {
 	enum cmd cmd;
 	uint am;
-	Card* target;
+	uint target;
+	//Card* target;
 } CmdAction;
 
 typedef struct {
