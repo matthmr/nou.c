@@ -76,7 +76,7 @@ A **deck** of cards is a set of 54 cards, two of which are the `B` and `C` card.
 As for `K`, `Q`, `J` and the numeric cards (13 cards), they all have one
 version *per suit*, with 4 suits in a deck.
 
-For more info run `nou --help`.
+For more info run `nou --help` or run `nou` then type `h` and hit enter.
 
 This game is *singleplayer only*.
 

@@ -1,11 +1,12 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <time.h>
-//#include <stdio.h>
+#include <stdio.h>
 
-#include "cli.h"
 #include "draw.h"
+#include "cli.h"
 #include "nou.h"
+#include "cmd.h"
 
 char* cmdbuff = NULL;
 
@@ -63,11 +64,11 @@ static inline void append (Player* p, Card* card) {
 Gstat take (Player* p, uint am) {
 	Card* card;
 	for (uint _ = 0; _ < am; _++) {
-		card = take_card ();
+		takecard: card = take_card ();
 		if (!card) {
 			if (sort (&deckr) == NOCARDS) return GDRAW;
-			shuffle (&deckr, deckr.cards - deckr.playing);
-			continue;
+			shuffle (&deckr, deckr.played); //deckr.cards - deckr.playing);
+			goto takecard; // continue;
 		}
 		playing (card);
 		append (p, card);
@@ -110,12 +111,17 @@ void play (Player* p, uint ci) {
 	drop (p, ci);
 }
 
-static Ptag turn (uint botn) {
+Player* turn (uint botn) {
+	static uint i = 0;
 	if (dir == DIRCLOCKWISE) {
-
+		i++;
+		i %= botn;
 	}
 	else {
+		if (i == 0) i = (botn-1);
+		else i--;
 	}
+	return &playerbuf[i];
 }
 
 static void gameinit (Deckr* deckr, uint botn) { // initiate the game
@@ -124,7 +130,7 @@ static void gameinit (Deckr* deckr, uint botn) { // initiate the game
 	deckr->n = n;
 	deckr->cards = cards;
 	deckr->deck = malloc (cards * sizeof (Card));
-	deckr->playing = PLAYING (botn);
+	//deckr->playing = PLAYING (botn);
 	deckr->played = 0;
 	decktop = &deckr->deck[n-1][CPDECK-1];
 	popdeck (deckr);
@@ -136,28 +142,25 @@ static void gameinit (Deckr* deckr, uint botn) { // initiate the game
 	//sort (deckr);
 	cmdbuff = calloc (CMDBUFF, sizeof (char));
 	uint ccardi;
-	draw: ccardi = seeded (deckr->cards - deckr->playing);
+	draw: ccardi = seeded (deckr->cards - deckr->playing) + deckr->playing;
 	Card* ccard = &index (deckr->deck, ccardi, deckr->cards);
 	Number dnum = ccard->number;
 	if (ccard->suit == SPECIAL || (
 	    dnum == _K || dnum == _Q || dnum == _J
 	)) goto draw;
 	else {
+		stacktop++;
 		Card tmp = *stacktop;
 		*stacktop = *ccard;
 		*ccard = tmp;
 		top = stacktop;
+		//stacktop++; top++;
 		deckr->played++;
 	}
-	write (1, MSG (GAME_HEADER));
-}
-
-static void cmdread (Cmd* cmd) {
-	read (0, cmd->cmdstr, CMDBUFF);
+	puts (GAME_HEADER);
 }
 
 static Gstat update_game (Cmd* cmd) {
-
 	switch (cmd->ac.cmd) {
 	case PLAY: play (cmd->p, cmd->ac.target); break;
 	case TAKE: take (cmd->p, cmd->ac.am); break;
@@ -175,28 +178,31 @@ static int gameloop (uint botn) { // main game loop
 
 	cmd.cmdstr = cmdbuff;
 
+	init_display (botn);
+
 	for (;;) {
-		if (turn (botn) == PLAYER) {
+		cmd.p = turn (botn);
+		if (cmd.p->tag == PLAYER) { // TODO: deprecate `p->tag == PLAYER` in favor of `!p->bot`
 			read: cmdread (&cmd);
 			switch (cmd.status) {
 			case CINVALID: goto read;
 			case CQUIT: goto end;
+			case CHELP: help (); goto read;
 			}
-			stat = update_game (&cmd);
-			if (stat == GDRAW || stat == GEND) goto end;
 		}
 		else {
 			bot_play (&cmd);
-			stat = update_game (&cmd);
-			if (stat == GDRAW || stat == GEND) goto end;
 		}
-		update_display ();
+		stat = update_game (&cmd);
+		if (stat == GDRAW || stat == GEND)
+			goto end;
+		update_display (&cmd);
 	}
 
 	end:
 	free (deckr.deck);
-	free (display.dis);
-	// wins (cmd->p);
+	free (display.deck);
+	// wins (cmd.p);
 
 	return 0;
 }
@@ -207,18 +213,17 @@ int main (int argc, char** argv) {
 	if (argc > 1) {
 		if ((argv[1] && argv[1][0] == '-')) {
 			switch (argv[1][1]) {
-			case 'v': write (1,
-				MSG ("nou " VERSION "\n")); return 1;
-			case 'h': default: write (2,
-				MSG ("Usage: nou [bot number:" BOTSSTR "]\n"
-				     "Note:  type `q' and press enter to quit at moment\n")); return 1;
+			case 'v': puts("nou " VERSION); return 1;
+			case 'h': default: fputs (
+				"Usage: nou [bot number:" BOTSSTR "]\n"
+				"Note:  type `q' and press enter to quit at moment\n", stderr); return 1;
 			}
 		}
 		bots = atoi (argv[1]);
 		if (bots <= 1)
-			write (2, MSG ("[ WW ] Invalid number, defaulting to " BOTSSTR "\n"));
+			fputs ("[ WW ] Invalid number, defaulting to " BOTSSTR "\n", stderr);
 		else if (bots >= SOFTLIM)
-			write (2, MSG ("[ WW ] Too many bots, defaulting to " BOTSSTR "\n"));
+			fputs ("[ WW ] Too many bots, defaulting to " BOTSSTR "\n", stderr);
 		else goto game;
 		bots = BOTS;
 	}

@@ -1,8 +1,7 @@
-#ifndef LOCK_CLI
-#  define LOCK_CLI
+#ifndef LOCK_CLI_COLOR
+#  define LOCK_CLI_COLOR
 
-#  include "nou.h"
-
+#  define ESC "\x1b"
 #  define __ESC__ "\x1b["
 #  define __RESET__ __ESC__ "0m"
 
@@ -56,8 +55,35 @@
 #  define LIGHT_CYAN_BG(x) __ESC__ "106m" x __RESET__
 #  define LIGHT_LGREY_BG(x) __ESC__ "107m" x __RESET__
 
-#  define GAME_HEADER "\n			|" BOLD ("nou " VERSION) "|\n" \
-                      "\n => Made by mH (" STYLE ("37;4m", "https://github.com/matthmr") ")" \
-                      "\n\n"
+#endif
+
+#ifndef LOCK_CLI_CMOV
+#  define LOCK_CLI_CMOV
+
+#  define MOVSTART __ESC__ "H"
+#  define MOVPOS(x,y) __ESC__ x ";" y "H"
+#  define MOVUP(x) __ESC__ x "A"
+#  define MOVDOWN(x) __ESC__ x "B"
+#  define MOVRIGHT(x) __ESC__ x "C"
+#  define MOVLEFT(x) __ESC__ x "D"
+#  define MOVDOWN0(x) __ESC__ x "E"
+#  define MOVUP0(x) __ESC__ x "F"
+#  define MOVCOL(x) __ESC__ x "G"
+#  define MOVUP1 ESC "M"
+#  define MOVSAVEDEC ESC "7"
+#  define MOVRESTOREDEC ESC "7"
+#  define MOVSAVESOC __ESC__ "s"
+#  define MOVRESTORESOC __ESC__ "u"
+#  define MOVSTART __ESC__ "H"
+
+#  define ERASEINDISPLAY __ESC__ "J"
+#  define ERASE2ENDSCREEN __ESC__ "0J"
+#  define ERASE2BEGINSCREEN __ESC__ "1J"
+#  define ERASEALLSCREEN __ESC__ "2J"
+#  define ERASESAVELINE __ESC__ "3J"
+#  define ERASEINLINE __ESC__ "K"
+#  define ERASE2ENDLINE __ESC__ "0K"
+#  define ERASE2STARTLINE __ESC__ "1K"
+#  define ERASEALLLINE __ESC__ "2K"
 
 #endif

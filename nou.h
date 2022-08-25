@@ -17,6 +17,7 @@ typedef enum {
 extern bool legal (Card, Card);
 extern bool playable (Player*, Card);
 
+extern Player* turn (uint);
 extern Gstat take (Player*, uint);
 extern void play (Player*, uint);
 

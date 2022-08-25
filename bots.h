@@ -21,7 +21,7 @@ typedef struct player {
 } Player;
 
 typedef enum {
-	CINVALID, CQUIT,
+	COK=0, CINVALID, CQUIT, CHELP,
 } CmdStat;
 
 enum cmd {TAKE, PLAY};
@@ -34,7 +34,7 @@ typedef struct {
 } CmdAction;
 
 typedef struct {
-	char* cmdstr; // t1, t4, p1h, 2p, pqc, ...
+	char* cmdstr;
 	Player* p;
 	CmdStat status;
 	CmdAction ac;

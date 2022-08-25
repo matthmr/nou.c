@@ -125,6 +125,7 @@ void swap (Deck* deck, uint i, uint pcards) { // swap cards
 }
 
 void shuffle (Deckr* deckr, uint pcards) { // shuffle the playing deck
+	//TODO: `pcards' should shift the shufflable deck up by itself
 	Deck* deck = deckr->deck;
 	for (uint i = 0; i < pcards; i++)
 		swap (deck, i, pcards);
