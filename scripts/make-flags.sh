@@ -3,8 +3,8 @@ case $1 in
 	'-h'|'--help')
 		printf 'Usage:       scripts/make-flags.sh
 Description: Makes defaults for the nou.c build
-Variables:   M4="m4-like command"
-             M4FLAGS="m4 flags"
+Variables:   M4=[m4-like command]
+             M4FLAGS=[m4 flags]
 Note:        Make sure to call this script from the repository root
 '
 		exit 1

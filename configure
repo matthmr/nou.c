@@ -10,13 +10,15 @@ INCLUDE_FLAGS=(
 INCLUDE_FLAG_PREFIX=
 
 CALLEES=(
+	"inline"
 	"make-flags"
 	"make-deps"
 )
 
 BUILDS_CALL=(
-	"M4=\"\$M4\" M4FLAGS=\"\$M4FLAGS\" scripts/${CALLEES[0]}.sh"
-	"CC=\"\$CC\" M4=\"\$M4\"           scripts/${CALLEES[1]}.sh"
+	"SED=\"\$SED\"                     scripts/${CALLEES[0]}.sh"
+	"M4=\"\$M4\" M4FLAGS=\"\$M4FLAGS\" scripts/${CALLEES[1]}.sh"
+	"CC=\"\$CC\" M4=\"\$M4\"           scripts/${CALLEES[2]}.sh"
 )
 
 function print_targets {

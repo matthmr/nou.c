@@ -2,6 +2,7 @@
 
 #include "cmd.h"
 #include "draw.h"
+#include "nou.h"
 
 const char* errmsg[] = {
 	[EINVALIDCMD] = "Invalid command `%s'",
@@ -13,6 +14,9 @@ const char* errmsg[] = {
 	[EMISSINGCMD] = "Missing command. Should be `p' for play or `t' for take",
 	[EMISSINGSUIT] = "Missing suit for special card `%s'",
 	[EILLEGAL] = "Command plays with illegal card",
+	[EMIXING] = "Wrong `n' syntax. Should be: <n><cmd>. Tried to mix",
+	[EMULSUIT] = "Multiple card suits were found for command `%s'",
+	[EMULNUM] = "Multiple card numbers were found for command `%s'",
 	[ETAKE] = "Wrong `t' syntax. Should be: <n>t",
 	[EPLAY] = "Wrong `p' syntax. Should be: <n>p or p<num> or p<suit> or p<num><suit>",
 	[ECHOOSE] = "Wrong `choose' sytnax. Should be a suit",
@@ -37,38 +41,45 @@ const char fullmsg[] = \
 "          [p]lays a [S]pecial card then asks for a card in the suit of [h]earts.\n"
 "\nHitting enter on an empty prompt repeats the last command.\n\n";
 
-const char cmd[] = { 'p', 't', 'h' };
-
 void help (void) {
 	write (1, fullmsg, sizeof (fullmsg));
 }
 
-static bool exist_with (Number num, Suit suit) {
-
+static bool exist_with (Number num, Suit suit) { // see if player has a card of `num' or `suit'
+	return true;
 }
 
-#define ITER(x,y) for (; (x) < (y); (x)++)
-static CmdStat cmdparse (Cmd* cmd, enum err* ecode) {
+static CmdStat cmdparse (Cmd* cmd, enum err* ecode) { // parse the player's command
 	struct promise {
-		bool _num, _suit, _special, _specialsuit;
+		bool _num, _suit, _special;
 		bool __10, __number;
-		bool __PAD__[2];
+		bool __PAD__[3];
+	};
+
+	struct cmdid {
+		uint id;
+		char buf [MAXCARDSLEN];
 	};
 
 	char* cmdbuf = cmd->cmdstr;
 
-	char cmdnumbuf[MAXCARDSLEN];
-	char c, _cmd;
-
-	uint i = 0;
-	uint d = 0;
-	uint am = 0;
+	uint d = 0, id = 0;
 
 	struct promise promise = {0};
+	struct cmdid cmdidbuf;
+
+	static Cmd lastcmd = {0};
 
 	// look for the easy ones first
-	if (*(short*)cmdbuf == CMDHELP) return CHELP;
-	if (*(short*)cmdbuf == CMDQUIT) return CQUIT;
+	short easyones = *(short*)cmdbuf;
+	switch (easyones) {
+		case CMDHELP: return CHELP;
+		case CMDQUIT: return CQUIT;
+		case CMDNONE: goto done; // TODO: copy `lastcmd' to `cmd'
+	}
+
+	char c = '\0';
+	uint i = 0;
 
 	// look for prefixing <n>
 	if (cmdbuf[0] == '0') goto invalid_prefix;
@@ -79,82 +90,108 @@ static CmdStat cmdparse (Cmd* cmd, enum err* ecode) {
 			if (d <= MAXCARDSLEN) {
 				d++; // bound it
 			}
-			else invalid_prefix: return CINVALID;
+			else goto invalid_prefix;
 		}
-		else break;
+		// test if the player even has said card
+		if (promise.__number && cmd->p->cardi != id)
+			invalid_prefix: ECODE (ENOSUCHCARDID);
+		break;
 	}
 
 	// look for the actual command character
 	if (c == 'p' || c == 't') {
 		cmd->ac.cmd = (c == 'p')? PLAY: TAKE;
-		_cmd = c;
 		i++;
 	}
-	else return CINVALID; // we REALLY need one
+	else if (!c) ECODE (EMISSINGCMD);
+	else ECODE (EINVALIDCMD);
 
-	// anything other than <n><cmd> errors, eg: 2t2, 9pSh
-	if (promise.__number && cmdbuf[i] != '\0') return CINVALID;
-	else if (promise.__number) return COK;
+	// anything other than <n><cmd> errors `EMIXING', eg: 2t2, 9pSh
+	if (promise.__number && cmdbuf[i] != '\0') ECODE (EMIXING);
+	else if (promise.__number) ECODE (EOK);
+	promise.__number = 0;
 
-	// TODO: ecode, cmd
-	// look for `play'-specific shenanigans
+	// look for `p'-specific shenanigans
 	ITER (i, CMDBUFF) {
 		c = cmdbuf[i];
+		if (c == '\n') break; // no need to go that far...
+
 		// <suit>
 		if (SUIT (c)) {
-			if (promise._special) { // get the special card chosen suit
-				MAYBE (promise._specialsuit, CINVALID);
+			// we get here by having a `1' followed by a suit; <num> doesn't trigger `_num' if `__10'
+			// is triggered earlier
+			if (promise.__10) {
+				promise.__10 = 0;
+				MAYBE (promise._num, EMULCARDNUM);
 			}
-			else {
-				if (promise._specialsuit) return CINVALID;
-				MAYBE (promise._suit, CINVALID);
-			}
+			MAYBE (promise._suit, EMISSINGSUIT);
+			continue;
 		}
+
 		// <special>
 		if (c == 'S') {
-			if (promise._suit | promise._num) return CINVALID;
-			MAYBE (promise._special, CINVALID);
+			// if we have anything before, we error `EMULCARDSUIT'
+			if (promise._suit | promise._num | promise._special) ECODE (EMULCARDSUIT);
+			MAYBE (promise._special, ECHOOSE);
+			continue;
 		}
+
 		// <num>
 		if (NUMBER (c) || c == 'A') {
-			// this is straight up a '0'
-			if (c == '0' && ! promise.__10) return CINVALID;
-			// base 10 fix-up
-			if (c == '1') {
-				MAYBE (promise.__10, CINVALID); // it still works because 11 is not a card
+			// we get here by having any number where we should have a suit
+			if (promise._special) ECODE (EMISSINGSUIT);
+			// no card number is `0'-prefixed
+			if (c == '0' && ! promise.__10) ECODE (ENOSUCHCARDNUM);
+			// no card has `11` as a number
+			else if (c == '1') { MAYBE (promise.__10, ENOSUCHCARDNUM) }
+			// otherwise, handle it as a normal number
+			else if (promise.__10) {
+				// same spiel as before, `11' is not a valid card number
+				if (c != '0') ECODE (ENOSUCHCARDNUM);
+				else promise.__10 = 0;
+				goto maybe_num;
 			}
-			// otherwise a number number
-			else {
-				if (promise.__10) {
-					if (c != '0') return CINVALID; // same spiel as before, 11 is not a card
-					else {
-						promise.__10 = 0;
-						goto maybe_num;
-					}
-				}
-				maybe_num: MAYBE (promise._num, CINVALID);
-			}
+			else maybe_num: MAYBE (promise._num, EMULCARDNUM);
+			continue;
 		}
-		return CINVALID;
+
+		// sanity check...
+		ECODE (EINVALIDCMD);
 	}
 
-	return COK; // make the compiler happy :)
+	// fallthrough: even if an error managed to squeeze pass the army of `if's
+	if ((promise._num + promise._suit + promise._special) != 2)
+		ECODE (EINVALIDCMD);
+
+ // make the compiler happy [even though it's garanteed for this function to have a return value]
+	done: return COK;
 }
 
 void cmdread (Cmd* cmd) {
-	static bool did_error = false;
-
-	enum err ecode;
 	CmdStat pstat;
 	char* cmdbuf = cmd->cmdstr;
 
-	parse:
-	read (0, cmdbuf, CMDBUFF); // TODO buasdj
+	enum err ecode;
+	Card* pcard = NULL;
+
+	parse: ecode = EOK;
+	read (0, cmdbuf, CMDBUFF);
 	pstat = cmdparse (cmd, &ecode);
 
 	// something went wrong
-	if (ecode != -1u) {
+	if (ecode != EOK) {
 		error_display (errmsg[ecode]);
+		goto parse;
+	}
+
+	else if (pstat == CQUIT || pstat == CHELP) {
+		cmd->status = pstat;
+		return; // let `gameloop' handle it
+	}
+
+	// of course, after ALL THIS it might still be an illegal card...
+	if (! legal (*pcard, *top)) {
+		error_display (errmsg[EILLEGAL]);
 		goto parse;
 	}
 }

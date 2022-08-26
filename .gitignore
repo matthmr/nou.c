@@ -3,6 +3,7 @@
 nou
 
 # Dev
+dev/
 *.log
 *.task
 make/*.mk

@@ -6,17 +6,20 @@
 
 #  define CMDHELP 0x6800
 #  define CMDQUIT 0x7100
+#  define CMDNONE 0x0a00
 
-#  define __errmsgbufsize 70
 #  define ERRMSGLEN __errmsgbufsize
-//#  undef ERRMSGLEN // we make this trigger #error, then we delete this line
+#  undef ERRMSGLEN
 
 #  ifndef ERRMSGLEN
 #    error `_errmsgbufsize' is not defined yet. Did you run ./configure?
 #  endif
 
 #  define SUIT(x) ((x) == 's' || (x) == 'c' || (x) == 'h' || (x) == 'd')
-#  define MAYBE(x,y) if (! (x)) (x) = 1; else return (y);
+#  define ITER(x,y) for (; (x) < (y); (x)++)
+
+#  define ECODE(x) return *ecode = (x), CINVALID
+#  define MAYBE(x,y) if (! (x)) { (x) = 1; } else { ECODE (y); }
 
 enum err {
 	EINVALIDCMD,
@@ -28,6 +31,9 @@ enum err {
 	EMISSINGCMD,
 	EMISSINGSUIT,
 	EILLEGAL,
+	EMIXING,
+	EMULSUIT,
+	EMULNUM,
 
 	ETAKE, EPLAY, ECHOOSE,
 	EOK = -1,

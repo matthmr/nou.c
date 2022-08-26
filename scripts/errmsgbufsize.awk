@@ -18,4 +18,4 @@ BEGIN {
 	}
 }
 
-END {print size}
+END {printf size}
