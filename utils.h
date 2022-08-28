@@ -19,9 +19,12 @@
 #  define THINK_INTERVAL 500*1000 // 500 ms
 #  define TAKE_INTERVAL 500*1000 // 100 ms
 
-#  define NUMBER(x) ((x) >= '0' || (x) <= '9')
+#  define NUMBER(x) ((x) >= '0' && (x) <= '9')
 
-#  define ONES(x) ~(~(1<<(x))+1)
+#  define ITOA(x) ((x) + 0x30)
+#  define ATOI(x) ((x) - 0x30)
+
+#  define ONES(x) (~(~(1<<(x))+1))
 
 typedef unsigned char uchar;
 typedef unsigned short ushort;

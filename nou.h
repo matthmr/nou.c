@@ -5,7 +5,7 @@
 #  include "bots.h"
 #  include "deck.h"
 
-#  define VERSION "v0.2.2"
+#  define VERSION "v0.3.0"
 #  define PROG "nou"
 
 #  define REVERSE(x) ((x)+1)%2

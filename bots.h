@@ -4,13 +4,10 @@
 #  include "utils.h"
 #  include "deck.h"
 
-typedef struct {
-	
-} Bot;
+// TODO: this scheisse
+typedef struct { } Bot;
 
-typedef enum {
-	PLAYER, BOT,
-} Ptag;
+typedef enum { PLAYER, BOT, } Ptag;
 
 typedef struct player {
 	uint* cards;
@@ -20,9 +17,7 @@ typedef struct player {
 	Bot* bot;          // @bote: bot instance
 } Player;
 
-typedef enum {
-	COK=0, CINVALID, CQUIT, CHELP,
-} CmdStat;
+typedef enum { COK=0, CINVALID, CQUIT, CHELP, } CmdStat;
 
 enum cmd {TAKE, PLAY};
 

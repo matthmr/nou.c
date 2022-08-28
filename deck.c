@@ -175,9 +175,10 @@ static void drawcards (uint botn, uint cardn) { // draw initial cards from the d
 }
 
 void popplayers (Deckr* deckr, uint botn, uint cardn) { // populate the bots' cards
-	playerbuf = malloc (botn  * sizeof (Player));
+	playerbuf = malloc (botn * sizeof (Player));
 	playerringbuf = malloc (botn * sizeof (Player*));
-	for (uint i = 0; i < botn; i++) playerringbuf[i] = &playerbuf[i];
+	for (uint i = 0; i < botn; i++)
+		playerringbuf[i] = &playerbuf[i];
 	popbots (botn);
 	ringshuffle (playerringbuf, botn);
 	drawcards (botn, cardn);

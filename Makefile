@@ -31,4 +31,12 @@ clean-docs:
 	@echo "[ .. ] Cleaning documentation"
 	rm -rfv $(DOCUMENTATION)
 
-.PHONY: clean clean-make clean-docs
+clean-tags:
+	@echo "[ .. ] Cleaning tags"
+	rm -fv tags
+
+tags:
+	@echo "[ .. ] Making tags file"
+	ctags --output-format=etags -f TAGS -R .
+
+.PHONY: clean clean-make clean-docs clean-tags tags
