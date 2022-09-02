@@ -4,9 +4,9 @@
 #  include "cli.h"
 #  include "bots.h"
 
-#  define CMDHELP 0x6800
-#  define CMDQUIT 0x7100
-#  define CMDNONE 0x0a00
+#  define CMDHELP 0x680a
+#  define CMDQUIT 0x710a
+#  define CMDNONE 0x0a0a
 
 #  define ERRMSGLEN 70
 //#  undef ERRMSGLEN
@@ -38,6 +38,7 @@ enum err {
 	EMULSUIT,
 	EMULNUM,
 	EMISSINGID,
+	ENOPREVCMD,
 
 	ETAKE, EPLAY, ECHOOSE,
 	EOK = -1,
@@ -51,8 +52,6 @@ enum info {
 extern const char* errmsg[];
 extern const char* infomsg[];
 extern const char fullmsg[];
-
-// extern const char cmd[];
 
 void help (void);
 void cmdread (Cmd*);

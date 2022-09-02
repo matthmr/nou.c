@@ -19,7 +19,8 @@ echo '[ .. ] Generating dependencies'
 
 echo "[ INFO ] CC = $CC"
 
-find . -name '*.c' -type f | xargs $CC -MM > make/Objects.mk
+# fix-up for local development branch: all test files have `-test' prefix
+find . -name '*.c' -and -not -name '*-test*' -type f | xargs $CC -MM > make/Objects.mk
 
 cat make/Objects.mk | cut -d: -f1 | tr '\n' ' ' | sed -e 's/^/OBJECTS:=&/g' -e 'a' >> make/Objects.mk
 

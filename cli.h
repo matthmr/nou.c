@@ -71,7 +71,7 @@
 #  define MOVCOL(x) __ESC__ x "G"
 #  define MOVUP1 ESC "M"
 #  define MOVSAVEDEC ESC "7"
-#  define MOVRESTOREDEC ESC "7"
+#  define MOVRESTOREDEC ESC "8"
 #  define MOVSAVESOC __ESC__ "s"
 #  define MOVRESTORESOC __ESC__ "u"
 #  define MOVSTART __ESC__ "H"

@@ -125,6 +125,8 @@ Player* turn (uint botn) {
 }
 
 static void gameinit (Deckr* deckr, uint botn) { // initiate the game
+
+	// init the deck
 	uint n = DECKS (botn);
 	uint cards = n * CPDECK;
 	deckr->n = n;
@@ -134,15 +136,22 @@ static void gameinit (Deckr* deckr, uint botn) { // initiate the game
 	deckr->played = 0;
 	decktop = &deckr->deck[n-1][CPDECK-1];
 	popdeck (deckr);
+
+	// shuffle the deck
 	uint t = time (NULL);
 	seed = *(uint*) &botn;
 	seed = (reseedr (t) << 4) ^ t;
 	shuffle (deckr, deckr->cards);
 	popplayers (deckr, botn, deckr->cards);
 	//sort (deckr);
+
+	// init the command buffer `cmdbuff'
 	cmdbuff = calloc (CMDBUFF, sizeof (char));
 	uint ccardi;
-	draw: ccardi = seeded (deckr->cards - deckr->playing) + deckr->playing;
+
+	// draw the initial card
+draw:
+	ccardi = seeded (deckr->cards - deckr->playing) + deckr->playing;
 	Card* ccard = &index (deckr->deck, ccardi, deckr->cards);
 	Number dnum = ccard->number;
 	if (ccard->suit == SPECIAL || (
@@ -157,19 +166,24 @@ static void gameinit (Deckr* deckr, uint botn) { // initiate the game
 		//stacktop++; top++;
 		deckr->played++;
 	}
+
 	puts (GAME_HEADER);
 }
 
-static Gstat update_game (Cmd* cmd) {
+static Gstat update_game (Cmd* cmd) { // update the game according to `cmd'
 	switch (cmd->ac.cmd) {
 	case PLAY: play (cmd->p, cmd->ac.target); break;
 	case TAKE: take (cmd->p, cmd->ac.am); break;
 	}
 
-	if (!cmd->p->cardi) return GEND; // player `p' wins!
+	// TODO: win screen
+	if (!cmd->p->cardi) return GEND; // player `p' wins; end the game
 	else return GCONT;
 }
 
+// TODO: currently, if for some reason the player doesn't have the first
+// top card, the game continues whereas by the rules, the turn should go
+// to the next player in line. This is not implemented yet
 static int gameloop (uint botn) { // main game loop
 	gameinit (&deckr, botn);
 
@@ -180,9 +194,15 @@ static int gameloop (uint botn) { // main game loop
 
 	init_display (botn);
 
+	// dirty hack to make the flow consistent
+	dir = REVERSE (dir);
+	turn (botn);
+	dir = REVERSE (dir);
+
 	for (;;) {
 		cmd.p = turn (botn);
-		if (cmd.p->tag == PLAYER) { // TODO: deprecate `p->tag == PLAYER` in favor of `!p->bot`
+		// TODO: deprecate `p->tag == PLAYER` in favor of `!p->bot`
+		if (cmd.p->tag == PLAYER) {
 			read: cmdread (&cmd);
 			switch (cmd.status) {
 			case CINVALID: goto read;
@@ -196,7 +216,7 @@ static int gameloop (uint botn) { // main game loop
 		stat = update_game (&cmd);
 		if (stat == GDRAW || stat == GEND)
 			goto end;
-		update_display (&cmd);
+		update_display (cmd.p);
 	}
 
 	end:
@@ -209,6 +229,7 @@ static int gameloop (uint botn) { // main game loop
 
 int main (int argc, char** argv) {
 	int bots = BOTS;
+	playern = (bots+1);
 
 	if (argc > 1) {
 		if ((argv[1] && argv[1][0] == '-')) {
@@ -220,14 +241,15 @@ int main (int argc, char** argv) {
 			}
 		}
 		bots = atoi (argv[1]);
-		if (bots <= 1)
+		if (bots < 1)
 			fputs ("[ WW ] Invalid number, defaulting to " BOTSSTR "\n", stderr);
 		else if (bots >= SOFTLIM)
 			fputs ("[ WW ] Too many bots, defaulting to " BOTSSTR "\n", stderr);
 		else goto game;
 		bots = BOTS;
 	}
-	playern = (bots++);
 
-	game: return gameloop (bots);
+	game: playern = (bots+1);
+		
+	return gameloop (playern);
 }

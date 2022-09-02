@@ -17,9 +17,19 @@ typedef struct player {
 	Bot* bot;          // @bote: bot instance
 } Player;
 
-typedef enum { COK=0, CINVALID, CQUIT, CHELP, } CmdStat;
+typedef enum {
+	COK=0,
+	CINVALID,
+	CQUIT,
+	CHELP,
+} CmdStat;
 
-enum cmd {TAKE, PLAY};
+enum cmd {
+	NOCMD = -1,
+
+	TAKE,
+	PLAY,
+};
 
 typedef struct {
 	enum cmd cmd;

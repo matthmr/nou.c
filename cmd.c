@@ -8,19 +8,21 @@
 #include "utils.h"
 
 const char* errmsg[] = {
-	[EINVALIDCMD] = "Invalid command `%s'. Should be `p' for play or `t' for take",
-	[ENOSUCHCARDNUM] = "No such playable matching number `%d'",
-	[ENOSUCHCARDSUIT] = "No such playable matching suit `%d'",
-	[EMULCARDNUM] = "Multiple matches for number `%d' were found",
-	[EMULCARDSUIT] = "Multiple matches for suit `%s' were found",
-	[ENOSUCHCARDID] = "No such playable matching id `%d'",
+	[EINVALIDCMD] = "Invalid command. Should be `p' for play or `t' for take",
+	[ENOSUCHCARDNUM] = "No such playable matching number'",
+	[ENOSUCHCARDSUIT] = "No such playable matching suit'",
+	[EMULCARDNUM] = "Multiple matches for number were found",
+	[EMULCARDSUIT] = "Multiple matches for suit were found",
+	[ENOSUCHCARDID] = "No such playable matching id",
 	// [EMISSINGCMD] = "Missing command. Should be `p' for play or `t' for take",
-	[EMISSINGSUIT] = "Missing suit for special card `%s'",
+	[EMISSINGSUIT] =  "Missing suit for special card",
 	[EILLEGAL] = "Command plays with illegal card",
 	[EMIXING] = "Wrong `n' syntax. Should be: <n><cmd>. Tried to mix",
-	[EMULSUIT] = "Multiple card suits were found for command `%s'",
-	[EMULNUM] = "Multiple card numbers were found for command `%s'",
+	[EMULSUIT] = "Multiple card suits were found for command",
+	[EMULNUM] = "Multiple card numbers were found for command",
 	[EMISSINGID] = "Missing card id for `p' command",
+	[ENOPREVCMD] = "No previous command to repeat",
+
 	[ETAKE] = "Wrong `t' syntax. Should be: <n>t",
 	[EPLAY] = "Wrong `p' syntax. Should be: <n>p or p<num> or p<suit> or p<num><suit>",
 	[ECHOOSE] = "Wrong `choose' sytnax. Should be a suit",
@@ -41,9 +43,9 @@ const char fullmsg[] = \
 "          id of the card to play (the id of the card is the number which prefixes the card of the\n"
 "          P0 player), `<num>' is an unique number field of a card in a player's deck and `<suit>'\n"
 "          is an unique suit field of a card in the player's deck. If the card to be played is a\n"
-"          special card, the suit to be asked comes AFTER the `p' command. For example: `pSh'\n"
-"          [p]lays a [S]pecial card then asks for a card in the suit of [h]earts.\n"
-"\nHitting enter on an empty prompt repeats the last command.\n\n";
+"          special card, the suit to be asked comes AFTER the `p' command. For example: `pCh'\n"
+"          [p]lays the [C] card then asks for a card in the suit of [h]earts.\n"
+"\nHitting enter on an empty prompt repeats the last command, if there is one.\n\n";
 
 static bool findcard (Player* p, Number num, Suit suit) { // see if player has a card of `num' or `suit'
 	return true;
@@ -61,25 +63,28 @@ static CmdStat cmdparse (Cmd* cmd, enum err* ecode) { // parse the player's comm
 		bool __PAD__[3];
 	};
 
-	struct cmdid {
-		uint id;
-		char buf [MAXCARDSLEN+1];
-	};
-
-	static Cmd lastcmd = {0};
-	static uint lastam = 0;
+	static Cmd lastcmd = {.ac = {.cmd = NOCMD}};
 
 	char* cmdbuf = cmd->cmdstr;
 
 	struct promise promise = {0};
-	struct cmdid cmdidbuf;
 
 	// look for the easy ones first
 	short easyones = *(short*)cmdbuf;
+	short __little_endian = (easyones & 0x00ff) << 8;
+
+	easyones >>= 8;
+	easyones |= __little_endian;
+
 	switch (easyones) {
 	case CMDHELP: return CHELP;
 	case CMDQUIT: return CQUIT;
-	case CMDNONE: lastcmd = *cmd; goto done;
+	case CMDNONE:
+		if (lastcmd.ac.cmd == NOCMD)
+			ECODE (ENOPREVCMD);
+		else
+			*cmd = lastcmd;
+		goto done;
 	}
 
 	uint i = 0;
@@ -96,9 +101,8 @@ static CmdStat cmdparse (Cmd* cmd, enum err* ecode) { // parse the player's comm
 		if (NUMBER (c)) {
 			promise.__number = 1;      // lock it ...
 			if (d <= MAXCARDSLEN) {    // ... bound it ...
-				cmdidbuf.id += ATOI (c)*pos;
+				id += ATOI (c)*pos;
 				pos *= 10;
-				cmdidbuf.buf[i] = c;
 				d++;
 			}
 			else goto invalid_prefix;  // ... and prevent overflows
@@ -122,14 +126,15 @@ static CmdStat cmdparse (Cmd* cmd, enum err* ecode) { // parse the player's comm
 
 	// prevent command mixing; eg: 2p2
 	if (promise.__number) {
-		if (c) ECODE (EMIXING);
+		if (!c || c != '\n') ECODE (EMIXING);
 		else   {
 			lastcmd = *cmd;
 			ECODE (EOK);
 		}
 	}
 	else {
-		cmd->ac.am = (!lastam)? (lastam = 1): lastam;
+		uint lastam = lastcmd.ac.am;
+		cmd->ac.am = (!lastam)? (lastcmd.ac.am = 1): lastam;
 
 		if (!c) ECODE (EOK);
 	}

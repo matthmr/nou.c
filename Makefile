@@ -8,35 +8,35 @@ MAKEFILES:=make/Flags.mk make/Objects.mk make/Targets.mk
 DOCUMENTATION:=docs/nou.1
 
 $(OBJECTS):
-	@echo "[ .. ] Compiling \`$<'"
-	$(CC) $(CFLAGS) $(CFLAGSADD) -c $< -o $@
+	@echo "CC " $<
+	@$(CC) $(CFLAGS) $(CFLAGSADD) -c $< -o $@
 
 $(TARGETS):
-	@echo "[ .. ] Linking to \`$@'"
-	$(CC) $(CFLAGS) $(CFLAGSADD) $? -o $@
+	@echo "CC -o" $@
+	@$(CC) $(CFLAGS) $(CFLAGSADD) $(OBJECTS) -o $@
 
 docs/nou.1: docs/nou.md
 	@echo "[ .. ] Compiling man documentation"
 	$(MD2ROFF) $< > docs/nou.1
 
 clean:
-	@echo "[ .. ] Cleaning working directory"
-	rm -rfv $(OBJECTS) $(TARGETS)
+	@echo "RM " $(OBJECTS) $(TARGETS)
+	@rm -rfv $(OBJECTS) $(TARGETS)
 
 clean-make:
-	@echo "[ .. ] Cleaning makefiles"
-	rm -rfv $(MAKEFILES)
+	@echo "RM " $(MAKEFILES)
+	@rm -rfv $(MAKEFILES)
 
 clean-docs:
-	@echo "[ .. ] Cleaning documentation"
-	rm -rfv $(DOCUMENTATION)
+	@echo "RM " $(DOCUMENTATION)
+	@rm -rfv $(DOCUMENTATION)
 
 clean-tags:
-	@echo "[ .. ] Cleaning tags"
-	rm -fv tags
+	@echo "RM TAGS"
+	@rm -fv TAGS
 
 tags:
-	@echo "[ .. ] Making tags file"
-	ctags --output-format=etags -f TAGS -R .
+	@echo "CTAGS -f TAGS"
+	@ctags --output-format=etags -f TAGS -R .
 
 .PHONY: clean clean-make clean-docs clean-tags tags

@@ -12,8 +12,8 @@
 #  define MOUNT(p) ((DECKS (p)*CPDECK)-CPPLAYER*p)
 #  define PLAYING(p) (CPPLAYER*(p))
 
-#  define BOTS 2
-#  define BOTSSTR "2"
+#  define BOTS 1
+#  define BOTSSTR "1"
 #  define SOFTLIM 1000
 #  define CMDBUFF 50
 #  define THINK_INTERVAL 500*1000 // 500 ms
