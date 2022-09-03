@@ -16,7 +16,7 @@ echo "[ INFO ] SED=$SED"
 
 echo "[ .. ] Inlining to \`cmd.h'"
 
-SIZE="$(scripts/errmsgbufsize.awk cmd.c)"
+SIZE="$(scripts/errmsglen.awk cmd.c)"
 
 echo "[ INFO ] [cmd.h] ERRMSGLEN=$SIZE"
 

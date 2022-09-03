@@ -17,7 +17,7 @@
 #  define SOFTLIM 1000
 #  define CMDBUFF 50
 #  define THINK_INTERVAL 500*1000 // 500 ms
-#  define TAKE_INTERVAL 500*1000 // 100 ms
+#  define TAKE_INTERVAL 100*1000 // 100 ms
 
 #  define NUMBER(x) ((x) >= '0' && (x) <= '9')
 

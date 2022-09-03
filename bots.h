@@ -4,8 +4,15 @@
 #  include "utils.h"
 #  include "deck.h"
 
-// TODO: this scheisse
-typedef struct { } Bot;
+typedef struct {
+	Suit strong_suit, weak_suit;
+	Number strong_number, weak_number;
+
+	Suit* strong_oth_suit, * weak_oth_suit;
+	Number* strong_oth_number, * weak_oth_number;
+
+	float risk_bias;
+} Bot;
 
 typedef enum { PLAYER, BOT, } Ptag;
 
@@ -19,23 +26,24 @@ typedef struct player {
 
 typedef enum {
 	COK=0,
+
 	CINVALID,
 	CQUIT,
 	CHELP,
 } CmdStat;
 
 enum cmd {
-	NOCMD = -1,
-
 	TAKE,
 	PLAY,
+
+	NOCMD = -1,
 };
 
 typedef struct {
 	enum cmd cmd;
 	uint am;
-	uint target;
-	//Card* target;
+	uint target; // Card* target;
+	//Suit csuit;
 } CmdAction;
 
 typedef struct {
@@ -47,8 +55,10 @@ typedef struct {
 
 extern char* cmdbuf;
 
-extern void bot_play (Cmd*);
 extern Player* playerbuf, * player;
 extern uint playern;
+
+void bot_play (Cmd*);
+void init_bot (float);
 
 #endif

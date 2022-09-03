@@ -18,6 +18,8 @@ typedef enum suit {
 	HEARTS,
 	SPADES,
 	SPECIAL,
+
+	NOSUIT = -1,
 } Suit;
 
 typedef enum number {
@@ -27,6 +29,8 @@ typedef enum number {
 	_J, // +2
 	_B, // +4
 	_C, // joker
+
+	NONUMBER = -1,
 } Number;
 
 typedef struct card {
@@ -52,6 +56,8 @@ extern Card* card0;
 extern Card* stacktop, * decktop;
 
 extern Suit csuit;
+extern uint acc;
+extern bool block, reverse;
 
 extern Direction dir;
 

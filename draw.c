@@ -37,7 +37,8 @@
 
 Display display;
 uint lines = 0;
-bool ERROR = false;
+
+bool block = false, reverse = false;
 
 static char movbuf[3 + MAXCARDSLEN + 4];
 static uint movbuflen = 0;
@@ -135,13 +136,13 @@ static char* _draw_card_cell (char* buf, Card* card, uint i) {
 	buf = _card_suit (buf, card->suit);
         buf = _str_embed_draw (buf,
 			       (((i+1) % PLAYERDECKCOLUM) == 0)?
-			       __RESET__ "]\n":
+			       __RESET__ "]\n" ERASE2ENDLINE:
 			       __RESET__ "] " );
 	return buf;
 }
 
 static char* _draw_players_entry (char* buf, uint i, Player* p) {
-	buf = _str_embed_draw (buf, "P");
+	buf = _str_embed_draw (buf, ERASE2ENDLINE "P");
 	buf = _itoa_draw (buf, i);
 	buf = _str_embed_draw (buf, ": ");
 	buf = _itoa_draw (buf, p->cardi);
@@ -155,19 +156,34 @@ static char* _draw_players_entry_highlight (char* buf, uint i, Player* p) {
 	return buf;
 }
 
+static void movbuf_from_lines (uint lines) {
+	char* _buf = movbuf;
+
+	_buf = _str_embed_draw (_buf, __ESC__);
+	_buf = _itoa_draw (_buf, lines);
+	_buf = _str_embed_draw(_buf, "F");
+	_buf = _str_embed_draw(_buf, MOVRIGHT ("5"));
+
+	*(_buf+1) = '\0';
+	_buf += 1;
+
+	movbuflen = (_buf - movbuf);
+}
+
 // -- draw stack top -- //
 static void draw_command_prompt (char* buf) {
 	char* _buf = buf;
 
-	_buf = _str_embed_draw (_buf, "(P0) \n\n");
+	_buf = _str_embed_draw (_buf,
+				ERASE2ENDLINE "(P0) \n" ERASE2ENDLINE "\n");
 
 	(void) memset (_buf, 0, display.promptbs - (_buf - buf));
 	(void) puts (buf);
 }
 
 static void draw_players_deck (char* buf, Player* p) {
-	static uint prevcardn = 0;
-	static uint prevcolumn = 0;
+	static uint prevcardi = CPPLAYER;
+	static uint prevlines = 1;
 
 	uint pcardi = p->cardi;
 	uint* pcards = p->cards;
@@ -175,17 +191,24 @@ static void draw_players_deck (char* buf, Player* p) {
 	char* _buf = buf;
 
 	// trigger line (re)counting
-	if (prevcardn != pcardi) {
-		prevcardn = pcardi;
-		uint ch = ((pcardi / PLAYERDECKCOLUM) + 1);
+	if (prevcardi != pcardi) {
+		prevcardi = pcardi;
+		uint _lines = (((pcardi-1) / PLAYERDECKCOLUM) + 1);
 
-		if (ch < prevcolumn)
+		if (_lines < prevlines) {
 			lines--;
-		else
-			lines++;
+			movbuf_from_lines (lines);
+		}
 
-		prevcolumn = ch;
+		else if (_lines > prevlines) {
+			lines++;
+			movbuf_from_lines (lines);
+		}
+
+		prevlines = _lines;
 	}
+
+	_buf = _str_embed_draw (_buf, ERASE2ENDLINE);
 
 	for (uint i = 0; i < pcardi; i++) {
 		_buf = _itoa_draw (_buf, (i+1));
@@ -199,7 +222,7 @@ static void draw_players_deck (char* buf, Player* p) {
 
 	// avoid a redundant newline; it can break the display
 	if (pcardi % PLAYERDECKCOLUM)
-		_buf = _str_embed_draw (_buf, "\n");
+		_buf = _str_embed_draw (_buf, "\n" ERASE2ENDLINE);
 
 	(void) memset (_buf, 0, display.playerbs - (_buf - buf));
 	(void) puts (buf);
@@ -208,13 +231,13 @@ static void draw_players_deck (char* buf, Player* p) {
 static void draw_game_deck (char* buf, uint dcardn, uint pcardn, Card* pcard) {
 	char* _buf = buf;
 
-	_buf = _str_embed_draw (_buf, "D: ");
+	_buf = _str_embed_draw (_buf, ERASE2ENDLINE "D: ");
 	_buf = _itoa_draw (_buf, dcardn);
-	_buf = _str_embed_draw (_buf, "\nP: ");
+	_buf = _str_embed_draw (_buf, "\n" ERASE2ENDLINE "P: ");
 	_buf = _itoa_draw (_buf, pcardn);
 	_buf = _str_embed_draw (_buf, " ");
 	_buf = _draw_card_cell (_buf, pcard, 0);
-	_buf = _str_embed_draw (_buf, "\n");
+	_buf = _str_embed_draw (_buf, "\n" ERASE2ENDLINE);
 
 	(void) memset (_buf, 0, display.deckbs - (_buf - buf));
 	(void) puts (buf);
@@ -241,6 +264,10 @@ static void draw_players_entry (char* buf, uint playern, uint playert) {
 
 }
 
+static void send_prompt (void) {
+	write (1, movbuf, movbuflen);
+}
+
 static void draw_stack (uint playert) {
 	draw_command_prompt (display.prompt);
 	draw_players_deck (display.player, player);
@@ -249,10 +276,12 @@ static void draw_stack (uint playert) {
 			deckr.played, top);
 	draw_players_entry (display.entry, playern, playert);
 
-	write (1, movbuf, movbuflen);
+	send_prompt ();
 }	
 
-static void draw_clear_error_prompt (void) {
+static void prompt_from_error (void) {
+	// this draws before the stack
+
 	char buf[12];
 	char* _buf = buf;
 
@@ -265,45 +294,118 @@ static void draw_clear_error_prompt (void) {
 // -- draw stack bottom -- //
 
 void init_display (uint botn) {
+	// the `+4' in the `calloc' call are for the `ERASE2ENDLINE'
+	// escape sequence prepended to the `write' call
+
 	display.promptbs = (PROMPTLEN + ERRMSGLEN);
-	display.prompt = calloc (display.promptbs, sizeof (char));
+	display.prompt = calloc (display.promptbs + 4, sizeof (char));
 
 	display.playerbs = CARDN * sizeof (PlayerCardCell);
-	display.player = calloc (CARDN, sizeof (PlayerCardCell));
+	display.player = calloc (display.playerbs + \
+				 4 * (((player->cardi-1) / PLAYERDECKCOLUM) + 1),
+				 sizeof (char));
 
 	display.deckbs = (DECKENTRYLEN);
-	display.deck = calloc (display.deckbs, sizeof (char));
+	display.deck = calloc (display.deckbs + 4*2, sizeof (char));
 	
 	display.entrybs = (botn-1) * sizeof (PlayerEntry) \
 		          + sizeof (PlayerHighlightEntry);
-	display.entry = calloc (display.entrybs, sizeof (char));
+	display.entry = calloc (display.entrybs + 4*botn, sizeof (char));
 
 	lines = 3 + /* draw_command_prompt */ \
 		(((player->cardi-1) / PLAYERDECKCOLUM) + 1) + /* draw_players_deck */ \
 		3 + /* draw_game_deck */      \
-		botn + 1; /* draw_players_entry */
+		botn + 2; /* draw_players_entry */
 
-	// populate `movbuf' and `movbuflen'
-	char* _buf = movbuf;
-
-	_buf = _str_embed_draw (_buf, __ESC__);
-	_buf = _itoa_draw (_buf, (lines+1));
-	_buf = _str_embed_draw(_buf, "F");
-	_buf = _str_embed_draw(_buf, MOVRIGHT ("5"));
-
-	movbuflen = _buf - movbuf;
+	movbuf_from_lines (lines);
 
 	draw_stack (0);
 }
 
 void error_display (const char* msg) {
-	ERROR = true;
+	static bool _error = false;
+
+	// clear the previous message
+	if (_error) write (1, MSG (ERASE2ENDLINE));
+	else _error = true;
+
 	puts (msg);
-	draw_clear_error_prompt ();
+	prompt_from_error ();
 }
 
 void info_display (const char* msg, uint infon) { }
 
 void update_display (Player* pplayer) {
+	// account for the newline...
+	write (1, MSG (MOVUP0 ("1")));
+
 	draw_stack (pplayer - player);
+}
+
+void fix_display (void) {
+	write (1, MSG ("\r"));
+	draw_command_prompt (display.prompt);
+}
+
+#define HELPLINES 23
+
+static void _draw_help (void) {
+	char buf[HELPLINES*4*2];
+	char* _buf = buf;
+
+	for (uint i = 0; i < HELPLINES; i++) {
+		_buf = _str_embed_draw (_buf, MOVDOWN0 ("1"));
+		_buf = _str_embed_draw (_buf, ERASE2ENDLINE);
+	}
+
+	write (1, buf, (_buf - buf));
+	_buf = buf;
+
+	for (uint i = 0; i < HELPLINES; i++) {
+		_buf = _str_embed_draw (_buf, MOVUP0 ("1"));
+	}
+
+	write (1, buf, (_buf - buf));
+}
+
+
+static void clear_help (Cmd* cmd) {
+	char buf[HELPLINES*4*2];
+	char* _buf = buf;
+
+	// clean up
+	for (uint i = 0; i < HELPLINES; i++) {
+		_buf = _str_embed_draw (_buf, MOVUP0 ("1"));
+		_buf = _str_embed_draw (_buf, ERASE2ENDLINE);
+	}
+
+	//_buf = _str_embed_draw (_buf, MOVDOWN0 ("1"));
+
+	write (1, buf, (_buf - buf));
+
+	draw_stack (cmd->p - player);
+}
+
+int draw_help (Cmd* cmd) {
+	// actually draw the help message
+	_draw_help ();
+
+	char buf[2];
+	buf[0] = buf[1] = 0;
+
+	write (1, fullmsg, fullmsgsize);
+	read (0, buf, sizeof (buf));
+
+	// little-endian spiel
+	short _buf = (buf[1] << 8) | buf[0];
+
+	// clear the message preemptively; if erroed, this function
+	// will be called again
+	clear_help (cmd);
+	
+	return (_buf != 0x000a);
+}
+
+void set_draw_players_entry_reverse (void) {
+	
 }

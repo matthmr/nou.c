@@ -19,7 +19,8 @@ Card* top = NULL;
 Card* card0 = NULL;
 Card* stacktop = NULL, * decktop = NULL;
 
-Suit csuit;
+Suit csuit = NOSUIT;
+uint acc = 0;
 
 uint seed, reseed;
 
@@ -158,7 +159,7 @@ static void popbots (uint botn) { // populate bots
 	for (uint i = 1; i < botn; i++) {
 		bot = &playerbuf[i];
 		bot->tag = BOT;
-		bot->bot = NULL; // TODO
+		//bot->bot = bot_init (rbias);
 		bot->cards = malloc (CARDN * sizeof (uint));
 		bot->cardn = CARDN; // CPPLAYER;
 		bot->cardi = 0;
@@ -177,11 +178,13 @@ static void drawcards (uint botn, uint cardn) { // draw initial cards from the d
 void popplayers (Deckr* deckr, uint botn, uint cardn) { // populate the bots' cards
 	playerbuf = malloc (botn * sizeof (Player));
 	playerringbuf = malloc (botn * sizeof (Player*));
+
 	for (uint i = 0; i < botn; i++)
 		playerringbuf[i] = &playerbuf[i];
+
 	popbots (botn);
 	ringshuffle (playerringbuf, botn);
 	drawcards (botn, cardn);
-	// NOTE: if a `play again?' option is ever added, this buffer will not have to be freed
+
 	free (playerringbuf);
 }

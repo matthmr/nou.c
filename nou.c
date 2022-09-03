@@ -76,38 +76,35 @@ Gstat take (Player* p, uint am) {
 	return GCONT;
 }
 
-static void psort (Player* p, uint cardi) {
-	uint cardn = player->cardn;
-	uint* buf = player->cards;
+static inline void psort (Player* p, uint ci, uint pcardi) {
+	uint* buf = p->cards;
+	uint i = ci;
 
-	uint* sbuf = NULL;
+	for (; i < (pcardi-1); i++)
+		buf[i] = buf[i+1];
 
-	uint i = 0, _i = 0;
+	buf[i] = 0;
+}
 
-	for (; i < cardn; i++) {
-		if (! buf[i]) {
-			if (!sbuf) {
-				_i = i;
-				sbuf = &buf[i];
-			}
-		}
-		else if (sbuf) {
-			sbuf = NULL;
-			*sbuf = buf[i];
-			i = _i;
-		}
+static inline void action (Card* card) {
+	switch (card->number)
+	{
+	case _K: block = true; break;
+	case _Q: reverse = true; break;
+	case _J: acc += 2; break;
+	case _B: acc += 4; break;
 	}
 }
 
-static inline void drop (Player* p, uint cardi) {
+static inline void drop (Player* p, uint ci) {
+	psort (p, ci, p->cardi);
 	p->cardi--;
-	psort (p, cardi);
 }
 
-void play (Player* p, uint ci) {
-	Card* pc = &index (deckr.deck, p->cards[ci+1], deckr.cards);
+void play (Player* p, Card* pc, uint ci) {
 	top = pc;
 	played (pc);
+	action (pc);
 	drop (p, ci);
 }
 
@@ -124,8 +121,15 @@ Player* turn (uint botn) {
 	return &playerbuf[i];
 }
 
-static void gameinit (Deckr* deckr, uint botn) { // initiate the game
+Player* dry_turn (uint botn) {
+	Player* ret = turn (botn);
+	dir = REVERSE (dir);
+	(void) turn (botn);
+	dir = REVERSE (dir);
+	return ret;
+}
 
+static void gameinit (Deckr* deckr, uint botn) { // initiate the game
 	// init the deck
 	uint n = DECKS (botn);
 	uint cards = n * CPDECK;
@@ -171,9 +175,35 @@ draw:
 }
 
 static Gstat update_game (Cmd* cmd) { // update the game according to `cmd'
+	Card* pcard;
+
 	switch (cmd->ac.cmd) {
-	case PLAY: play (cmd->p, cmd->ac.target); break;
-	case TAKE: take (cmd->p, cmd->ac.am); break;
+	case PLAY:
+		pcard = &index (deckr.deck,
+				cmd->p->cards[cmd->ac.target-1],
+				deckr.cards);
+
+		// we have a special card; expect it to set the suit via `csuit'
+		if (pcard->suit == SPECIAL && csuit == NOSUIT) EMSGCODE (EMISSINGSUIT);
+
+		if (! legal (*pcard , *top)) EMSGCODE (EILLEGAL);
+		else play (cmd->p, pcard, (cmd->ac.target-1));
+
+		if (block) {
+			block = false;
+			(void) turn (playern);
+		}
+		else if (reverse) {
+			reverse = false;
+			dir = REVERSE (dir);
+			set_draw_players_entry_reverse ();
+		}
+
+		break;
+
+	case TAKE: // TODO: take info message
+		take (cmd->p, cmd->ac.am);
+		break;
 	}
 
 	// TODO: win screen
@@ -194,28 +224,33 @@ static int gameloop (uint botn) { // main game loop
 
 	init_display (botn);
 
-	// dirty hack to make the flow consistent
-	dir = REVERSE (dir);
-	turn (botn);
-	dir = REVERSE (dir);
+	cmd.p = player;
 
 	for (;;) {
-		cmd.p = turn (botn);
-		// TODO: deprecate `p->tag == PLAYER` in favor of `!p->bot`
-		if (cmd.p->tag == PLAYER) {
+		if (cmd.p->tag == PLAYER) { // TODO: deprecate `p->tag == PLAYER` in favor of `!p->bot`
 			read: cmdread (&cmd);
 			switch (cmd.status) {
 			case CINVALID: goto read;
 			case CQUIT: goto end;
-			case CHELP: help (); goto read;
+			case CHELP: while (draw_help (&cmd)); goto read;
 			}
 		}
-		else {
-			bot_play (&cmd);
-		}
+		else bot_play (&cmd);
+
 		stat = update_game (&cmd);
-		if (stat == GDRAW || stat == GEND)
+
+		switch (stat) {
+		case GDRAW: case GEND:
 			goto end;
+		case GMSG_ERR:
+			msgsend_err (MSGERRCODE);
+			goto read;
+		case GMSG_INFO:
+			msgsend_info (MSGINFOCODE);
+			goto read;
+		}
+
+		cmd.p = turn (botn);
 		update_display (cmd.p);
 	}
 

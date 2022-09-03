@@ -1,6 +1,7 @@
 # Binary
 *.o
 nou
+core/
 
 # Dev
 dev/

@@ -23,7 +23,6 @@ typedef char schar[4];
 			      MAXCARDSLEN + 1 + 3 + ESCLEN + 1)           /* <esc>P<n>: <m> [*]<esc> */
 #  define DECKENTRYLEN (1 + 1 + 1 + MAXCARDSLEN + 1                       /* D: <n>       */ \
                         + 1 + 1 + 1 + MAXCARDSLEN + 1 + CARDLEN + 1)      /* P: <n> [J ♣] */
-
 typedef char ansi[ESCLEN];
 typedef char CardNID[MAXCARDSLEN];
 
@@ -51,6 +50,11 @@ void error_display (const char*);
 void info_display (const char*, uint);
 void update_display (Player*);
 void init_display (uint);
+void fix_display (void);
+
+int draw_help (Cmd*);
+
+void set_draw_players_entry_reverse (void);
 
 #endif
 
