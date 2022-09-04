@@ -183,12 +183,13 @@ static Gstat update_game (Cmd* cmd) { // update the game according to `cmd'
 				cmd->p->cards[cmd->ac.target-1],
 				deckr.cards);
 
-		// we have a special card; expect it to set the suit via `csuit'
-		if (pcard->suit == SPECIAL && csuit == NOSUIT) EMSGCODE (EMISSINGSUIT);
+		// ensure suit
+		if (pcard->suit == SPECIAL && csuit == NOSUIT)
+			EMSGCODE (EMISSINGSUIT);
 
-		if (! legal (*pcard , *top)) EMSGCODE (EILLEGAL);
-		else play (cmd->p, pcard, (cmd->ac.target-1));
-
+		// ensure legal
+		if (! legal (*pcard, *top)) EMSGCODE (EILLEGAL);
+		
 		if (block) {
 			block = false;
 			(void) turn (playern);
@@ -199,11 +200,12 @@ static Gstat update_game (Cmd* cmd) { // update the game according to `cmd'
 			set_draw_players_entry_reverse ();
 		}
 
+		play (cmd->p, pcard, (cmd->ac.target-1));
+
 		break;
 
 	case TAKE: // TODO: take info message
-		take (cmd->p, cmd->ac.am);
-		break;
+		return take (cmd->p, cmd->ac.am);
 	}
 
 	// TODO: win screen

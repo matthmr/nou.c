@@ -18,15 +18,19 @@
 #  define ITER(x,y,z,w) for (; (z) < (w); (z)++, (x) = (y)[(z)])
 
 #  define ECODE(x) return *ecode = (x), CINVALID
-#  define _EOK(x) return *ecode = (x), COK
+#  define ECODESLAVE(x,y) return *ecode = (x), (y).master = CINVALID, (y);
+
 #  define MAYBE(x,y) if (! (x)) { (x) = 1; } else { ECODE (y); }
+#  define MAYBESLAVE(x,y) if (! (x).slave) { (x).slave = 1; } else { ECODESLAVE (y, x) }
+
+#  define _EOK(x) return *ecode = (x), COK
 
 #  define INC(x,y,z) (z)++; (x) = (y)[(z)]
 #  define _DONE(x) ((x) == '\n' || !(x))
 
 #  define _SUIT(x) ((x) == 's' || (x) == 'c' || (x) == 'h' || (x) == 'd')
 #  define _SPECIAL(x) ((x) == 'B' || (x) == 'C')
-#  define _NUMBER(x) ((x) == 'A' || ((x) >= '2' && (x) <= '9'))
+#  define _NUMBER(x) ((x) == 'A' || NUMBER (x)) // || _SPECIAL (x)
 
 enum err {
 	EINVALIDCMD,
@@ -34,6 +38,7 @@ enum err {
 	ENOSUCHCARDSUIT,
 	EMULCARDNUM,
 	EMULCARDSUIT,
+	EMULCARD,
 	ENOSUCHCARDID,
 	EMISSINGSUIT,
 	EILLEGAL,
@@ -41,6 +46,8 @@ enum err {
 	EMULSUIT,
 	EMULNUM,
 	ENOPREVCMD,
+	ENOLEGAL,
+	EMULLEGAL,
 
 	EOK = -1,
 };

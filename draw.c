@@ -387,7 +387,7 @@ static void clear_help (Cmd* cmd) {
 }
 
 int draw_help (Cmd* cmd) {
-	// actually draw the help message
+	// render the help message
 	_draw_help ();
 
 	char buf[2];
