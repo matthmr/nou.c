@@ -4,12 +4,12 @@ include make/Flags.mk
 include make/Objects.mk
 include make/Targets.mk
 
-MAKEFILES:=make/Flags.mk make/Objects.mk make/Targets.mk
+MAKEFILES:=make/Flags.mk make/Objects.mk make/Targets.mk make/Autodep.mk
 DOCUMENTATION:=docs/nou.1
 
-$(OBJECTS):
-	@echo "CC " $<
-	@$(CC) $(CFLAGS) $(CFLAGSADD) -c $< -o $@
+#$(OBJECTS):
+#	@echo "CC " $<
+#	@$(CC) $(CFLAGS) $(CFLAGSADD) -c $< -o $@
 
 $(TARGETS):
 	@echo "CC -o" $@

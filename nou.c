@@ -18,13 +18,11 @@ bool legal (Card playing, Card played) {
 		return (psuit == csuit || psuit == SPECIAL);
 	}
 	else if (num == _B) {
-		return (
-			(psuit == csuit && (pnum == _Q || pnum == _J)) ||
+		return ((psuit == csuit && (pnum == _Q || pnum == _J)) ||
 			(psuit == SPECIAL && pnum == _B));
 	}
 	else if (num == _J) {
-		return (
-			(psuit == suit && pnum == _Q) ||
+		return ((psuit == suit && pnum == _Q) ||
 			(pnum == _J) ||
 			(psuit == SPECIAL && pnum == _B));
 	}
@@ -32,21 +30,7 @@ bool legal (Card playing, Card played) {
 	return (pnum == num || psuit == suit || psuit == SPECIAL);
 }
 
-bool playable (Player* p, Card played) {
-	Deck* deck = deckr.deck;
-	uint cardn = deckr.cards;
-
-	uint n = p->cardn;
-	uint* cards = p->cards;
-
-	for (uint i = 0; i < n; i++)
-		if (legal (index (deck, cards[i], cardn), played)) return true;
-
-	return false;
-}
-
 static inline Card* take_card (void) {
-	//static Card* takr = NULL;
 	if (! stacktop) stacktop = card0;
 	else stacktop++;
 	if (stacktop == decktop) return stacktop = NULL;
@@ -54,25 +38,65 @@ static inline Card* take_card (void) {
 }
 
 static inline void append (Player* p, Card* card) {
+	// TODO: smart memory cleaning; it's not needed now because
+	// even the most leaky allocs are only about ~4KB in size
 	if (p->cardi == (p->cardn+1)) {
-		p->cards = realloc (p->cards, (p->cardn + CARDN) * sizeof (uint));
+		p->cards = realloc (p->cards,
+				    (p->cardn + CARDN) * sizeof (uint));
 	}
 	p->cards[p->cardi] = (card - card0);
 	p->cardi++;
 }
 
-Gstat take (Player* p, uint am) {
+Gstat take (Player* p, uint am, bool always) {
+	static uint alegal = 0;
+
+	uint pcardi = p->cardi;
+	uint* pcards = p->cards;
+	Card pcard;
 	Card* card;
-	for (uint _ = 0; _ < am; _++) {
-		takecard: card = take_card ();
-		if (!card) {
-			if (sort (&deckr) == NOCARDS) return GDRAW;
-			shuffle (&deckr, deckr.played); //deckr.cards - deckr.playing);
-			goto takecard; // continue;
+
+	// reuse functionality
+	if (always) goto takeloop;
+
+	// the "no more than three legal cards" rule
+	// UPDATE: I decided to make special cards an exception to this rule
+	for (uint i = 0; i < pcardi; i++) {
+		pcard = index (deckr.deck,
+			       pcards[i],
+			       deckr.cards - (deckr.playing + deckr.played));
+		if (legal (pcard, *top) && (pcard.suit != SPECIAL)) {
+			alegal++;
+			if (alegal == 3) {
+				alegal = 0;
+				EMSGCODE (E3LEGAL);
+			}
 		}
-		playing (card);
+	}
+
+takeloop:
+	for (uint _ = 0; _ < am; _++) {
+takecard:
+		card = take_card ();
+		// same rule as before
+		if ((card && top) && legal (*card, *top)) {
+			alegal++;
+			if (alegal == 4) {
+				alegal = 0;
+				EMSGCODE (E3LEGAL);
+			}
+		}
+		if (!card) {
+			if (sort (&deckr) == NOCARDS)
+				return GDRAW;
+			shuffle (&deckr, deckr.played);
+			goto takecard;
+		}
+		OWNS (p, card);
 		append (p, card);
 	}
+
+	alegal = 0;
 	return GCONT;
 }
 
@@ -103,7 +127,7 @@ static inline void drop (Player* p, uint ci) {
 
 void play (Player* p, Card* pc, uint ci) {
 	top = pc;
-	played (pc);
+	PLAYS (pc);
 	action (pc);
 	drop (p, ci);
 }
@@ -121,22 +145,14 @@ Player* turn (uint botn) {
 	return &playerbuf[i];
 }
 
-Player* dry_turn (uint botn) {
-	Player* ret = turn (botn);
-	dir = REVERSE (dir);
-	(void) turn (botn);
-	dir = REVERSE (dir);
-	return ret;
-}
-
-static void gameinit (Deckr* deckr, uint botn) { // initiate the game
+static void gameinit (Deckr* deckr, uint botn) {
 	// init the deck
 	uint n = DECKS (botn);
 	uint cards = n * CPDECK;
 	deckr->n = n;
-	deckr->cards = cards;
 	deckr->deck = malloc (cards * sizeof (Card));
-	//deckr->playing = PLAYING (botn);
+	deckr->cards = cards;
+	deckr->playing = PLAYING (botn);
 	deckr->played = 0;
 	decktop = &deckr->deck[n-1][CPDECK-1];
 	popdeck (deckr);
@@ -147,17 +163,18 @@ static void gameinit (Deckr* deckr, uint botn) { // initiate the game
 	seed = (reseedr (t) << 4) ^ t;
 	shuffle (deckr, deckr->cards);
 	popplayers (deckr, botn, deckr->cards);
-	//sort (deckr);
 
 	// init the command buffer `cmdbuff'
 	cmdbuff = calloc (CMDBUFF, sizeof (char));
-	uint ccardi;
 
-	// draw the initial card
+	uint ccardi;
 draw:
+	// draw the initial card
 	ccardi = seeded (deckr->cards - deckr->playing) + deckr->playing;
 	Card* ccard = &index (deckr->deck, ccardi, deckr->cards);
 	Number dnum = ccard->number;
+
+	// get an actual legal card
 	if (ccard->suit == SPECIAL || (
 	    dnum == _K || dnum == _Q || dnum == _J
 	)) goto draw;
@@ -171,11 +188,20 @@ draw:
 		deckr->played++;
 	}
 
+#if HEADER == 1
 	puts (GAME_HEADER);
+#endif
 }
 
-static Gstat update_game (Cmd* cmd) { // update the game according to `cmd'
+static Gstat update_game (Cmd* cmd) {
 	Card* pcard;
+
+	// accumulative cards take without asking
+	if (cmd->status == CACC) {
+		uint _acc = acc;
+		acc = 0;
+		return take (cmd->p, _acc, true);
+	}
 
 	switch (cmd->ac.cmd) {
 	case PLAY:
@@ -189,77 +215,95 @@ static Gstat update_game (Cmd* cmd) { // update the game according to `cmd'
 
 		// ensure legal
 		if (! legal (*pcard, *top)) EMSGCODE (EILLEGAL);
-		
+
+		play (cmd->p, pcard, (cmd->ac.target-1));
+
 		if (block) {
 			block = false;
 			(void) turn (playern);
 		}
 		else if (reverse) {
 			reverse = false;
-			dir = REVERSE (dir);
+			dir = ~dir;
 			set_draw_players_entry_reverse ();
 		}
-
-		play (cmd->p, pcard, (cmd->ac.target-1));
 
 		break;
 
 	case TAKE: // TODO: take info message
-		return take (cmd->p, cmd->ac.am);
+		return take (cmd->p, cmd->ac.am, false);
 	}
 
-	// TODO: win screen
-	if (!cmd->p->cardi) return GEND; // player `p' wins; end the game
-	else return GCONT;
+	return cmd->p->cardi? GCONT: GEND;
 }
 
-// TODO: currently, if for some reason the player doesn't have the first
-// top card, the game continues whereas by the rules, the turn should go
-// to the next player in line. This is not implemented yet
-static int gameloop (uint botn) { // main game loop
+static int gameloop (uint botn) {
 	gameinit (&deckr, botn);
 
 	Cmd cmd;
 	Gstat stat;
 
 	cmd.cmdstr = cmdbuff;
+	cmd.p = player;
 
 	init_display (botn);
 
-	cmd.p = player;
+	// if the player doesn't have a legal card, its round gets skipped
+	for (uint i = 0; i < botn; i++) {
+		for (uint j = 0; j < CPPLAYER; j++) {
+			uint* pcards = playerbuf[i].cards;
+			Card pcard = index (deckr.deck,
+					    pcards[j],
+					    deckr.cards - (deckr.playing + deckr.played));
+			// we don't want to the first play wasting a special, it's better to skip the turn
+			if (legal (pcard, *top) && pcard.suit != SPECIAL)
+				goto loop;
+		}
+		(void) turn (botn);
+	}
 
+	// somehow NO player has a legal card, it's better to restart the game before it begins
+	// TODO: make it conviently restart (this will be a hassle though...)
+	fputs ("\n\n[ !! ] Randomness error. Please restart the game", stderr);
+	goto done;
+
+loop:
 	for (;;) {
-		if (cmd.p->tag == PLAYER) { // TODO: deprecate `p->tag == PLAYER` in favor of `!p->bot`
-			read: cmdread (&cmd);
+		if (cmd.p->tag == PLAYER) {
+read:
+			cmdread (&cmd);
 			switch (cmd.status) {
 			case CINVALID: goto read;
-			case CQUIT: goto end;
+			case CQUIT: goto done;
 			case CHELP: while (draw_help (&cmd)); goto read;
 			}
 		}
-		else bot_play (&cmd);
+		else bot_play (&cmd, 0);
 
 		stat = update_game (&cmd);
 
 		switch (stat) {
-		case GDRAW: case GEND:
-			goto end;
 		case GMSG_ERR:
 			msgsend_err (MSGERRCODE);
 			goto read;
 		case GMSG_INFO:
 			msgsend_info (MSGINFOCODE);
 			goto read;
+		case GDRAW:
+			draw_display ();
+			goto done;
+		case GEND:
+			win_display (cmd.p);
+			goto done;
 		}
 
 		cmd.p = turn (botn);
 		update_display (cmd.p);
 	}
 
-	end:
-	free (deckr.deck);
-	free (display.deck);
-	// wins (cmd.p);
+done:
+	//free (deckr.deck);
+	//free (display.deck);
 
 	return 0;
 }

@@ -9,6 +9,8 @@
 #include "cli.h"
 #include "cmd.h"
 
+// TODO: get rid of these `memset's
+
 /**
 
      === `nou's drawing stack ===
@@ -42,6 +44,8 @@ bool block = false, reverse = false;
 
 static char movbuf[3 + MAXCARDSLEN + 4];
 static uint movbuflen = 0;
+
+static bool draw_players_entry_reverse = false;
 
 const schar numpm[] = {
 	[_A] = "A ",
@@ -213,8 +217,8 @@ static void draw_players_deck (char* buf, Player* p) {
 	for (uint i = 0; i < pcardi; i++) {
 		_buf = _itoa_draw (_buf, (i+1));
 		_buf = _str_embed_draw (_buf, ":");
-		// for some reason `index' doesn't work here and I'm too tired to know why
 
+		// for some reason `index' doesn't work here and I'm too tired to know why
 		_buf = _draw_card_cell (_buf,
 					&(deckr.deck[pcards[i]/deckr.cards][pcards[i]%deckr.cards]),
 					i);
@@ -246,7 +250,20 @@ static void draw_game_deck (char* buf, uint dcardn, uint pcardn, Card* pcard) {
 static void draw_players_entry (char* buf, uint playern, uint playert) {
 	char* _buf = buf;
 
-	for (uint i = 0; i < playern; i++) {
+	// keep `P0' at the top
+	if (playert == 0) {
+		_buf = _draw_players_entry_highlight (_buf, 0, &playerbuf[0]);
+		_buf = _str_embed_draw (_buf, __RESET__ "\n");
+	}
+	else {
+		_buf = _draw_players_entry (_buf, 0, &playerbuf[0]);
+		_buf = _str_embed_draw (_buf, "\n");
+	}
+
+	if (draw_players_entry_reverse)
+		goto reverse_draw;
+
+	for (uint i = 1; i < playern; i++) {
 		if (playert == i) {
 			_buf = _draw_players_entry_highlight (_buf, i, &playerbuf[i]);
 			_buf = _str_embed_draw (_buf, __RESET__ "\n");
@@ -258,10 +275,25 @@ static void draw_players_entry (char* buf, uint playern, uint playert) {
 			continue;
 		}
 	}
+	goto draw;
 
+reverse_draw:
+	for (uint i = (playern-1); i > 0; i--) {
+		if (playert == i) {
+			_buf = _draw_players_entry_highlight (_buf, i, &playerbuf[i]);
+			_buf = _str_embed_draw (_buf, __RESET__ "\n");
+			continue;
+		}
+		else {
+			_buf = _draw_players_entry (_buf, i, &playerbuf[i]);
+			_buf = _str_embed_draw (_buf, "\n");
+			continue;
+		}
+	}
+		     
+draw:
 	(void) memset (_buf, 0, display.entrybs - (_buf - buf));
 	(void) puts (buf);
-
 }
 
 static void send_prompt (void) {
@@ -406,6 +438,26 @@ int draw_help (Cmd* cmd) {
 	return (_buf != 0x000a);
 }
 
+void win_display (Player* wp) {
+	// P<n> WINS!
+	char buf[1 + MAXCARDSLEN + 6 + 1];
+	char* _buf = buf;
+
+	_buf = _str_embed_draw (_buf, "P");
+	_buf = _itoa_draw (_buf, wp - &playerbuf[0]);
+	_buf = _str_embed_draw (_buf, " WINS!");
+
+	write (1, MSG (ERASE2ENDLINE));
+
+	memset (_buf, 0, &buf[1+MAXCARDSLEN+6] - _buf);
+	puts (buf);
+}
+
+void draw_display (void) {
+	write (1, MSG (ERASE2ENDLINE));
+	puts ("DRAW!");
+}
+
 void set_draw_players_entry_reverse (void) {
-	
+	draw_players_entry_reverse ^= true;
 }

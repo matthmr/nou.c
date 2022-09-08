@@ -11,7 +11,9 @@ Run `./configure` then `make nou` to build the program. `make` variables are:
 - `CFLAGSADD`: additional flags to pass to the compiler (after those written by `./configure`) ()
 
 `./configure` flags are the same as `make` variables but in **lowercase**
-(for example `./configure --cc=clang`).
+(for example `./configure --cc=clang`) plus the following include flags:
+
+- `[-/+]header` : ommit/permit drawing game header (permit)
 
 Run `make docs` to compile the man documentation to `docs`.
 

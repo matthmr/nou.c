@@ -2,13 +2,13 @@
 #  define LOCK_CMD
 
 #  include "cli.h"
-#  include "bots.h"
+#  include "players.h"
 
 #  define CMDHELP 0x3f0a
 #  define CMDQUIT 0x710a
-#  define CMDNONE 0x0a0a
+#  define CMDNONE 0x0a00
 
-#  define ERRMSGLEN 70
+#  define ERRMSGLEN 44
 //#  undef ERRMSGLEN
 
 #  ifndef ERRMSGLEN
@@ -18,10 +18,10 @@
 #  define ITER(x,y,z,w) for (; (z) < (w); (z)++, (x) = (y)[(z)])
 
 #  define ECODE(x) return *ecode = (x), CINVALID
-#  define ECODESLAVE(x,y) return *ecode = (x), (y).master = CINVALID, (y);
+#  define ECODESLAVE(x,y) return *ecode = (y), (x).master = CINVALID, (x);
 
 #  define MAYBE(x,y) if (! (x)) { (x) = 1; } else { ECODE (y); }
-#  define MAYBESLAVE(x,y) if (! (x).slave) { (x).slave = 1; } else { ECODESLAVE (y, x) }
+#  define MAYBESLAVE(x,y) if (! (x).slave) { (x).slave = 1; } else { ECODESLAVE (x, y) }
 
 #  define _EOK(x) return *ecode = (x), COK
 
@@ -30,7 +30,12 @@
 
 #  define _SUIT(x) ((x) == 's' || (x) == 'c' || (x) == 'h' || (x) == 'd')
 #  define _SPECIAL(x) ((x) == 'B' || (x) == 'C')
-#  define _NUMBER(x) ((x) == 'A' || NUMBER (x)) // || _SPECIAL (x)
+#  define _LETTER(x) (				\
+	((x) | ICASE) == 'a' ||			\
+	((x) | ICASE) == 'k' ||			\
+	((x) | ICASE) == 'q' ||			\
+	((x) | ICASE) == 'j')
+#  define _NUMBER(x) (_LETTER (x) || NUMBER (x)) // || _SPECIAL (x)
 
 enum err {
 	EINVALIDCMD,
@@ -48,6 +53,7 @@ enum err {
 	ENOPREVCMD,
 	ENOLEGAL,
 	EMULLEGAL,
+	E3LEGAL,
 
 	EOK = -1,
 };

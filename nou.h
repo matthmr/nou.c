@@ -2,32 +2,33 @@
 #  define LOCK_NOU
 
 #  include "utils.h"
-#  include "bots.h"
 #  include "deck.h"
+#  include "players.h"
 
-#  define VERSION "v0.4.2"
+#  define VERSION "v0.5.0"
 #  define PROG "nou"
-
-#  define REVERSE(x) ((x)+1)%2
 
 #  define EMSGCODE(x) return MSGERRCODE = (x), GMSG_ERR
 
+#  define OWNS(p,c)				\
+	(c)->owner = (p);			\
+	deckr.playing++
+
+#  define PLAYS(c)				\
+	(c)->owner = (NULL);			\
+	deckr.playing--;			\
+	deckr.played++;				\
+	top = (c)
+
 typedef enum {
 	GDRAW, GEND, GCONT,
-
+	//GACC,
 	GMSG_ERR, GMSG_INFO,
 } Gstat;
 
-extern bool legal (Card, Card);
-extern bool playable (Player*, Card);
-
-extern Player* turn (uint);
-extern Player* dry_turn (uint);
-
-extern Gstat take (Player*, uint);
-extern void play (Player*, Card*, uint);
-
-#define playing(c) c->playing = 1; deckr.playing++
-#define played(c) c->playing = 0; deckr.playing--; deckr.played++; top = c
+bool legal (Card, Card);
+Player* turn (uint);
+Gstat take (Player*, uint, bool);
+void play (Player*, Card*, uint);
 
 #endif

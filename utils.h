@@ -19,6 +19,8 @@
 #  define THINK_INTERVAL 500*1000 // 500 ms
 #  define TAKE_INTERVAL 100*1000 // 100 ms
 
+#  define ICASE 0x20
+
 #  define NUMBER(x) ((x) >= '0' && (x) <= '9')
 
 #  define ITOA(x) ((x) + 0x30)

@@ -7,8 +7,8 @@
 #  define CARDN 20
 
 typedef enum direction {
-	DIRCLOCKWISE = 1,
-	DIRCOUNTERCLOCKWISE = -1,
+	DIRCLOCKWISE = 0,
+	DIRCOUNTERCLOCKWISE = -1u,
 } Direction;
 #  define DIRECTION DIRCLOCKWISE
 
@@ -33,11 +33,19 @@ typedef enum number {
 	NONUMBER = -1,
 } Number;
 
+//typedef struct card_owner {
+//	Player* p;
+//	uint pos;
+//} CardOwner;
+
+#  include "players.h"
+
 typedef struct card {
 	Suit suit;
 	Number number;
-	bool playing;
-	// short played;
+	Player* owner;
+	//CardOwner* owner;
+	//short played;
 } Card;
 
 typedef Card Deck[CPDECK];
@@ -56,7 +64,7 @@ extern Card* card0;
 extern Card* stacktop, * decktop;
 
 extern Suit csuit;
-extern uint acc;
+extern uint acc, pacc;
 extern bool block, reverse;
 
 extern Direction dir;
@@ -67,11 +75,10 @@ uint seeded (uint);
 
 void swap (Deck*, uint, uint);
 void shuffle (Deckr*, uint);
-void reshuffle (Deckr*, uint);
 
 void popplayers (Deckr*, uint, uint);
 
-#define NOCARDS 1
+#  define NOCARDS 1
 int sort (Deckr*);
 void popdeck (Deckr*);
 

@@ -1,18 +1,19 @@
+#include <stdlib.h>
 #include <unistd.h>
 //#include <string.h>
 
+#include "players.h"
 #include "cmd.h"
 #include "draw.h"
 #include "nou.h"
-#include "bots.h"
 #include "utils.h"
 
 #define _SLAVE_IGNORE 0
 
 const char* errmsg[] = {
 	[EINVALIDCMD] = "Invalid command",
-	[ENOSUCHCARDNUM] = "No such playable matching number'",
-	[ENOSUCHCARDSUIT] = "No such playable matching suit'",
+	[ENOSUCHCARDNUM] = "No such playable matching number",
+	[ENOSUCHCARDSUIT] = "No such playable matching suit",
 	[EMULCARDNUM] = "Multiple matches for number were found",
 	[EMULCARDSUIT] = "Multiple matches for suit were found",
 	[EMULCARD] = "Multiple matches for card were found",
@@ -25,30 +26,32 @@ const char* errmsg[] = {
 	[ENOPREVCMD] = "No previous command to repeat",
 	[ENOLEGAL] = "No legal command found",
 	[EMULLEGAL] = "Multiple legal commands found",
+	[E3LEGAL] = "More than 3 legal cards were found",
 };
 
 const char* infomsg[] = {
-	[IFOUNDCARD] = "A legal card was found while running the `t' command at iteration %d",
+	[IFOUNDCARD] = "A legal card was found while running the `t'",
 	//[ISUITS] = "spades: `s', clubs: `c', hearts: `h', diamonds: `d'",
+	//[IACC] = "Accumulative command cannot be counteracted"
 };
 
 const char fullmsg[] = \
-"\nThe game is similar to UNO. The rules can be thoroughly read in `nou.1' or at the project's `README.md'\n\n"
-"You have three prefixes: (`.' : take), (`,' : play), (` ' : legal play)\n\n"
-"  - `.': the `.' prefix is `.<n>' where `<n>' is an amount of cards to take. If empty, it will\n"
-"         be assumed to be 1\n"
-"  - `,': the `,' prefix is `,<n>' or' where `<n>' is the id of the card to play (the id of the card\n"
-"         the number which prefixes the card of the `P0' player)\n"
-"  - ` ': the ` ' (empty space) prefix is ` '. It will play the only legal move possible, otherwise error\n"
-"         if there are more than one legal move to play\n\n"
-"You can also play a card by passing in an unique suit or number in your deck. For example, to play a\n"
-"2 of hearts you could run `2', `2h' or `h' if any of those fields uniquely identified your card.\n"
-"Suits are passed by initial: [s]pades, [c]lubs, [h]earts, [d]iamonds\n\n"
-"Playing with a special card requires the suit to be passed after the number of the special card, for\n"
-"example: `Ch', plays the [C] card asking for a card of [h]earts. This also applies if the card is\n"
-"prefixed by `,' or ` ' is a special card\n\n"
-"Hitting enter on an empty prompt repeats the last command, if there is one\n\n"
-"(Press ENTER to go back to the game)\n";
+	"\nThe game is similar to UNO. The rules can be thoroughly read in `nou.1' or at the project's `README.md'\n\n"
+	"You have three prefixes: (`.' : take), (`,' : play), (` ' : legal play)\n\n"
+	"  - `.': the `.' prefix is `.<n>' where `<n>' is an amount of cards to take. If empty, it will\n"
+	"         be assumed to be 1\n"
+	"  - `,': the `,' prefix is `,<n>' or' where `<n>' is the id of the card to play (the id of the card\n"
+	"         the number which prefixes the card of the `P0' player)\n"
+	"  - ` ': the ` ' (empty space) prefix is ` '. It will play the only legal move possible, otherwise error\n"
+	"         if there are more than one legal move to play\n\n"
+	"You can also play a card by passing in an unique suit or number in your deck. For example, to play a\n"
+	"2 of hearts you could run `2', `2h' or `h' if any of those fields uniquely identified your card.\n"
+	"Suits are passed by initial: [s]pades, [c]lubs, [h]earts, [d]iamonds\n\n"
+	"Playing with a special card requires the suit to be passed after the number of the special card, for\n"
+	"example: `Ch', plays the [C] card asking for a card of [h]earts. This also applies if the card is\n"
+	"prefixed by `,' or ` ' is a special card\n\n"
+	"Hitting enter on an empty prompt repeats the last command, if there is one\n\n"
+	"(Press ENTER to go back to the game)\n";
 const uint fullmsgsize = sizeof (fullmsg);
 
 int MSGERRCODE = EOK, MSGINFOCODE = IOK;
@@ -107,19 +110,23 @@ static CmdStatFindcard findcard (Player* p,
 
 		if (card.number == num && card.suit == suit) {
 			MAYBESLAVE (ret, EMULCARD);
-			ret.target = i;
+			ret.target = (i+1);
 		}
 	}
+	if (! ret.slave) ECODESLAVE (ret, EILLEGAL);
+	goto done;
 
 by_num:
 	for (uint i = 0; i < pcardi; i++) {
 		card = index(deckr.deck, p->cards[i], deckr.cards);
 
 		if (card.number == num) {
-			MAYBESLAVE (ret, EMULCARDNUM);
-			ret.target = i;
+			MAYBESLAVE (ret, EMULCARDNUM); 
+			ret.target = (i+1);
 		}
 	}
+	if (! ret.slave) ECODESLAVE (ret, ENOSUCHCARDNUM);
+	goto done;
 
 by_suit:
 	for (uint i = 0; i < pcardi; i++) {
@@ -127,10 +134,12 @@ by_suit:
 
 		if (card.suit == suit) {
 			MAYBESLAVE (ret, EMULCARDSUIT);
-			ret.target = i;
+			ret.target = (i+1);
 		}
 	}
+	if (! ret.slave) ECODESLAVE (ret, ENOSUCHCARDSUIT);
 
+done:
 	return ret;
 }
 
@@ -194,23 +203,27 @@ static CmdStatNum cmdparse_number (char* buf, enum err* ecode) {
 	uint i = 0;
 	char c = buf[i];
 
-	// `0' prefix : no bueno
+	// `0' prefix
 	if (buf[i] == '0') goto invalid_prefix;
 
-	ITER (c, buf, i, CMDBUFF) {
-		if (NUMBER (c)) {
-			id += ATOI (c)*pos;
-			pos *= 10;
-			d++;
-		}
-		else break;
+	// dirty hack for `pos'
+	INC (c, buf, i);
 
-		if (d > MAXCARDSLEN) invalid_prefix: {
-			*ecode = ENOSUCHCARDID;
-			ret.master = CINVALID;
-			ret.slave = _SLAVE_GOTO_INVALID_PREFIX;
-			return ret;
-		}
+	// find out how many digits we have
+	ITER (c, buf, i, CMDBUFF) if (NUMBER (c)) pos *= 10, d++;
+
+	if (d > MAXCARDSLEN) {
+		invalid_prefix:
+		*ecode = ENOSUCHCARDID;
+		ret.master = CINVALID;
+		ret.slave = _SLAVE_GOTO_INVALID_PREFIX;
+		return ret;
+	}
+
+	for (uint i = 0; (i <= d) && (pos); i++) {
+		c = buf[i];
+		id += ATOI (c)*pos;
+		pos /= 10;
 	}
 
 	ret.num = id;
@@ -233,13 +246,33 @@ static CmdStatLegal cmdparse_legal (Player* p, enum err* ecode) {
 		card = index (deckr.deck, p->cards[i], deckr.cards);
 		if (legal (card, *top)) {
 			MAYBESLAVE (ret, EMULLEGAL);
-			ret.target = i;
+			ret.target = (i+1);
 		}
 	}
 
 	if (ret.slave == _SLAVE_IGNORE)
 		*ecode = ENOLEGAL;
 
+	return ret;
+}
+
+static CmdStatLegal cmdparse_legalacc (Player* p, enum err* ecode) {
+	CmdStatLegal ret = {0};
+	uint pcardi = p->cardi;
+	Card card;
+
+	for (uint i = 0; i < pcardi; i++) {
+		card = index (deckr.deck, p->cards[i], deckr.cards);
+		if (legal (card, *top)) {
+			ret.master = CACC;
+			ret.slave = _SLAVE_LEGAL;
+			goto done;
+		}
+	}
+
+	ret.slave = _SLAVE_IGNORE;
+
+done:
 	return ret;
 }
 
@@ -289,6 +322,10 @@ static CmdStat cmdparse (Cmd* cmd, enum err* ecode) {
 		else {
 			CmdStatNum statnum = cmdparse_number (cmdbuf+1, ecode);
 
+			// clear overshot
+			if (statnum.num > (deckr.cards - (deckr.played + deckr.playing)))
+				ECODE (EINVALIDCMD);
+
 			if (statnum.slave == _SLAVE_IGNORE) {
 				cmd->ac.cmd = TAKE;
 				cmd->ac.am = statnum.num;
@@ -313,21 +350,26 @@ static CmdStat cmdparse (Cmd* cmd, enum err* ecode) {
 		else {
 			CmdStatNum statnum = cmdparse_number (cmdbuf+1, ecode);
 
+			// clear overshot
+			if (statnum.num > cmd->p->cardi)
+				ECODE (EINVALIDCMD);
+
 			if (statnum.slave == _SLAVE_IGNORE) {
 				cmd->ac.cmd = PLAY;
 				cmd->ac.target = statnum.num;
 				lastcmd = *cmd;
 			}
-			if (index (deckr.deck,
-				   cmd->p->cards[statnum.num-1],
-				   deckr.cards).suit == SPECIAL) {
-				promise._play_special = true;
-				i++;
-				c = cmdbuf[i];
-				goto play_by_attr;
-			}
+			else goto statnum_master;
 
-			else return statnum.master;
+			Card card = index (deckr.deck,
+					   cmd->p->cards[statnum.num-1],
+					   deckr.cards);
+
+			if (card.suit == SPECIAL) {
+				c = numpm[card.number][0];
+				goto _special;
+			}
+			else statnum_master: return statnum.master;
 		}
 	}
 
@@ -342,23 +384,21 @@ static CmdStat cmdparse (Cmd* cmd, enum err* ecode) {
 			cmd->ac.target = statlegal.target;
 			lastcmd = *cmd;
 		}
+		else goto statlegal_master;
+		Card card = index (deckr.deck,
+				   cmd->p->cards[statlegal.target],
+				   deckr.cards);
 
-		if (index (deckr.deck,
-			   cmd->p->cards[statlegal.target],
-			   deckr.cards).suit == SPECIAL) {
-			promise._play_special = true;
-			i++;
-			c = cmdbuf[i];
-			goto play_by_attr;
+		if (card.suit == SPECIAL) {
+			c = numpm[card.number][0];
+			goto _special;
 		}
-
-		else return statlegal.master;
+		else statlegal_master: return statlegal.master;
 		
 	}
 
 	cmd->ac.cmd = PLAY;
 
-play_by_attr:
 	// prefixing <>: play by card attribute
 	ITER (c, cmdbuf, i, CMDBUFF) {
 		if (_DONE (c)) break;
@@ -386,14 +426,14 @@ play_by_attr:
 				goto maybe_num;
 			}
 			else {
-			maybe_num:
+maybe_num:
 				MAYBE (promise._play_num, EMULCARDNUM);
 				*(val.play_number + (val.play_number[0] != '\0')) = c;
 			}
 			
 		}
 
-		else if (_SPECIAL (c)) {
+		else if (_SPECIAL (c)) _special: {
 			// <special> precedes all
 			if (promise._play_suit | promise._play_num | promise._play_special)
 				ECODE (EMULNUM);
@@ -412,10 +452,10 @@ play_by_attr:
 						 findcard_number (val.play_number),
 						 (promise._play_special?
 						  (csuit = findcard_suit (val.play_suit), NOSUIT):
-						   findcard_suit (val.play_suit)),
-						  ecode);
+						  findcard_suit (val.play_suit)),
+						 ecode);
 
-	if (statfindcard.slave == _SLAVE_IGNORE) {
+	if (statfindcard.slave != _SLAVE_IGNORE) {
 		cmd->ac.target = statfindcard.target;
 		goto done;
 	}
@@ -430,7 +470,7 @@ void msgsend_err (enum err ecode) {
 }
 
 void msgsend_info (enum info icode) {
-	return;
+	return; // TODO<-
 }
 
 void cmdread (Cmd* cmd) {
@@ -438,6 +478,14 @@ void cmdread (Cmd* cmd) {
 
 	char* cmdbuf = cmd->cmdstr;
 	uint _read;
+
+	// send accumalative callback only if there are no cards available to be played
+	if (acc) {
+		CmdStatLegal statlegalacc = cmdparse_legalacc (cmd->p, &ecode);
+		if (statlegalacc.slave == _SLAVE_IGNORE) {
+			cmd->status = statlegalacc.master;
+		}
+	}
 
 parse:
 	ecode = EOK;
@@ -453,7 +501,7 @@ parse:
 	// something went wrong
 	if (ecode != EOK) {
 		error_display (errmsg[ecode]);
-		// NOTE: the line below could be removed. I just kept them
+		// NOTE: the line below could be removed. I just kept it
 		// to spare a function call :)
 		goto parse;
 	}

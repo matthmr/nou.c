@@ -1,8 +1,8 @@
 #ifndef LOCK_DRAW
 #  define LOCK_DRAW
 
-#  include "bots.h"
 #  include "utils.h"
+#  include "players.h"
 
 typedef char wchar[4];
 typedef char schar[4];
@@ -53,6 +53,9 @@ void init_display (uint);
 void fix_display (void);
 
 int draw_help (Cmd*);
+
+void win_display (Player*);
+void draw_display (void);
 
 void set_draw_players_entry_reverse (void);
 
