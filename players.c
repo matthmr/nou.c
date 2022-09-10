@@ -13,4 +13,5 @@ void bot_play (Cmd* cmd, uint boti) {
 }
 
 void init_bot (float bias, uint boti) {
+
 }

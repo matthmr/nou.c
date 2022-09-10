@@ -73,13 +73,12 @@ uint reseedr (uint);
 uint seedr (uint);
 uint seeded (uint);
 
-void swap (Deck*, uint, uint);
 void shuffle (Deckr*, uint);
 
 void popplayers (Deckr*, uint, uint);
+void popdeck (Deckr*);
 
 #  define NOCARDS 1
 int sort (Deckr*);
-void popdeck (Deckr*);
 
 #endif

@@ -41,6 +41,8 @@ Variables:       CC=\"C compiler (used in ./configure)\"
 
 Set flags:       --cc=, --cflags=
 
+Include flags:   [+/-]header
+
 Note:            Make sure to call this script from the repository root
                  Use @\"\"@ notation to pass in values that contain spaces in them, for example:
 

@@ -31,45 +31,141 @@ bool legal (Card playing, Card played) {
 }
 
 static inline Card* take_card (void) {
-	if (! stacktop) stacktop = card0;
-	else stacktop++;
-	if (stacktop == decktop) return stacktop = NULL;
-	else return stacktop;
+	// NOTE: the `stacktop' variable points to the card that is available
+	// to play; 
+	static bool lock_stacktop_empty = false;
+
+	if (! stacktop) {
+		stacktop = card0;
+	}
+	else {
+		stacktop++;
+	}
+
+	if (stacktop == decktop) {
+		lock_stacktop_empty = true;
+	}
+	else if (lock_stacktop_empty) {
+		lock_stacktop_empty = false;
+		return stacktop = NULL;
+	}
+
+	return stacktop;
 }
 
-static inline void append (Player* p, Card* card) {
+// NOTE: the `::cardi' field is human-readable, so its index
+// is taken raw. For example, a value of 7 means the 8th element
+// is empty
+static inline void player_append (Player* p, Card* card) {
 	// TODO: smart memory cleaning; it's not needed now because
 	// even the most leaky allocs are only about ~4KB in size
-	if (p->cardi == (p->cardn+1)) {
-		p->cards = realloc (p->cards,
-				    (p->cardn + CARDN) * sizeof (uint));
+	// TODO: fix this function's bug
+	if (p->cardi == p->cardn) {
+		fprintf (stderr, "\n== called `realloc' on %d ==\n", p->cardn);//DEBUG
+		p->cardn += CARDN;
+		p->cards = realloc (p->cards,	p->cardn * sizeof (uint));
 	}
 	p->cards[p->cardi] = (card - card0);
+	//DEBUG {
+	// uint pcardi = p->cardi;
+	// uint* pcards = p->cards;
+	// fprintf (stderr, "\n[player_append] :: %p\n", p);
+	// for (uint i = 0; i < pcardi; i++) {
+	// 	fprintf (stderr, "[%d] = %d, ", i, pcards[i]);
+	// }
+	//DEBUG }
 	p->cardi++;
 }
 
+static int drawfirstcard (void) {
+	uint available = (deckr.cards - deckr.playing);
+
+	// we need at least another card in the stack
+	if (available < 2) {
+		return NOCARDS;
+	}
+
+	uint ccardi;
+draw:
+	// draw the initial card
+	ccardi = seeded (available) + deckr.playing;
+	Card* ccard = &index (deckr.deck, ccardi, deckr.cards);
+	Number dnum = ccard->number;
+
+	// get an actual legal card
+	if (ccard->suit == SPECIAL || (
+	    dnum == _K || dnum == _Q || dnum == _J
+	)) goto draw;
+	else {
+		stacktop++;
+		// swap the chosen card against the current top
+		Card tmp = *stacktop;
+		*stacktop = *ccard;
+		*ccard = tmp;
+		top = stacktop;
+		deckr.played++;
+	}
+
+	return 0;
+}
+
+static Gstat reshuffle (uint* cardi) {
+	int sortstat = sort (&deckr);
+
+	if (sortstat == NOCARDS) {
+		return GDRAW;
+	}
+
+	shuffle (&deckr, deckr.played);
+	deckr.played = 0;
+
+	*cardi = deckr.cards - (deckr.playing + deckr.played);
+
+	Gstat dfcstat = drawfirstcard ();
+
+	return dfcstat? GDRAW: GOK;
+}
+
 Gstat take (Player* p, uint am, bool always) {
+	// `alegal' is static because this function receives `always = true'
+	// when taking on accumulative or drawing initial cards
 	static uint alegal = 0;
 
 	uint pcardi = p->cardi;
 	uint* pcards = p->cards;
+
 	Card pcard;
 	Card* card;
 
-	// reuse functionality
-	if (always) goto takeloop;
+	uint cardi = deckr.cards - (deckr.playing + deckr.played);
 
-	// the "no more than three legal cards" rule
-	// UPDATE: I decided to make special cards an exception to this rule
+	// skip `E3LEGAL' blocking
+	if (always) {
+		if (! cardi) {
+			Gstat reshufflestat = reshuffle (&cardi);
+			if (reshufflestat != GOK) {
+				return reshufflestat;
+			}
+		}
+		goto takeloop;
+	}
+
+	// trigger reshuffle
+	else if (! cardi) {
+		Gstat reshufflestat = reshuffle (&cardi);
+		if (reshufflestat != GOK) {
+			return reshufflestat;
+		}
+	}
+
+	// UPDATE (20220908): I decided to make special cards an exception to this rule
 	for (uint i = 0; i < pcardi; i++) {
-		pcard = index (deckr.deck,
-			       pcards[i],
-			       deckr.cards - (deckr.playing + deckr.played));
+		pcard = index (deckr.deck, pcards[i], cardi);
 		if (legal (pcard, *top) && (pcard.suit != SPECIAL)) {
 			alegal++;
 			if (alegal == 3) {
 				alegal = 0;
-				EMSGCODE (E3LEGAL);
+				//EMSGCODE (E3LEGAL);//DEBUG
 			}
 		}
 	}
@@ -78,22 +174,22 @@ takeloop:
 	for (uint _ = 0; _ < am; _++) {
 takecard:
 		card = take_card ();
-		// same rule as before
 		if ((card && top) && legal (*card, *top)) {
 			alegal++;
 			if (alegal == 4) {
 				alegal = 0;
-				EMSGCODE (E3LEGAL);
+				//EMSGCODE (E3LEGAL);//DEBUG
 			}
 		}
 		if (!card) {
-			if (sort (&deckr) == NOCARDS)
+			if (sort (&deckr) == NOCARDS) {
 				return GDRAW;
+			}
 			shuffle (&deckr, deckr.played);
 			goto takecard;
 		}
-		OWNS (p, card);
-		append (p, card);
+		MKOWNER (p, card);
+		player_append (p, card);
 	}
 
 	alegal = 0;
@@ -110,7 +206,7 @@ static inline void psort (Player* p, uint ci, uint pcardi) {
 	buf[i] = 0;
 }
 
-static inline void action (Card* card) {
+static inline void actioncard (Card* card) {
 	switch (card->number)
 	{
 	case _K: block = true; break;
@@ -120,16 +216,17 @@ static inline void action (Card* card) {
 	}
 }
 
-static inline void drop (Player* p, uint ci) {
+static inline void playerdrop (Player* p, uint ci) {
 	psort (p, ci, p->cardi);
 	p->cardi--;
 }
 
 void play (Player* p, Card* pc, uint ci) {
 	top = pc;
-	PLAYS (pc);
-	action (pc);
-	drop (p, ci);
+
+	RMOWNER (pc);
+	actioncard (pc);
+	playerdrop (p, ci);
 }
 
 Player* turn (uint botn) {
@@ -152,7 +249,8 @@ static void gameinit (Deckr* deckr, uint botn) {
 	deckr->n = n;
 	deckr->deck = malloc (cards * sizeof (Card));
 	deckr->cards = cards;
-	deckr->playing = PLAYING (botn);
+	// NOTE: this fills itself up at `popplayers'-time
+	//deckr->playing = PLAYING (botn);
 	deckr->played = 0;
 	decktop = &deckr->deck[n-1][CPDECK-1];
 	popdeck (deckr);
@@ -164,29 +262,10 @@ static void gameinit (Deckr* deckr, uint botn) {
 	shuffle (deckr, deckr->cards);
 	popplayers (deckr, botn, deckr->cards);
 
+	(void) drawfirstcard ();
+
 	// init the command buffer `cmdbuff'
 	cmdbuff = calloc (CMDBUFF, sizeof (char));
-
-	uint ccardi;
-draw:
-	// draw the initial card
-	ccardi = seeded (deckr->cards - deckr->playing) + deckr->playing;
-	Card* ccard = &index (deckr->deck, ccardi, deckr->cards);
-	Number dnum = ccard->number;
-
-	// get an actual legal card
-	if (ccard->suit == SPECIAL || (
-	    dnum == _K || dnum == _Q || dnum == _J
-	)) goto draw;
-	else {
-		stacktop++;
-		Card tmp = *stacktop;
-		*stacktop = *ccard;
-		*ccard = tmp;
-		top = stacktop;
-		//stacktop++; top++;
-		deckr->played++;
-	}
 
 #if HEADER == 1
 	puts (GAME_HEADER);
@@ -200,7 +279,7 @@ static Gstat update_game (Cmd* cmd) {
 	if (cmd->status == CACC) {
 		uint _acc = acc;
 		acc = 0;
-		return take (cmd->p, _acc, true);
+		return take (cmd->p, _acc, ALWAYS);
 	}
 
 	switch (cmd->ac.cmd) {
@@ -225,13 +304,13 @@ static Gstat update_game (Cmd* cmd) {
 		else if (reverse) {
 			reverse = false;
 			dir = ~dir;
-			set_draw_players_entry_reverse ();
+			reverse_draw_players ();
 		}
 
 		break;
 
-	case TAKE: // TODO: take info message
-		return take (cmd->p, cmd->ac.am, false);
+	case TAKE:
+		return take (cmd->p, cmd->ac.am, CONDITIONAL);
 	}
 
 	return cmd->p->cardi? GCONT: GEND;
@@ -249,22 +328,29 @@ static int gameloop (uint botn) {
 	init_display (botn);
 
 	// if the player doesn't have a legal card, its round gets skipped
-	for (uint i = 0; i < botn; i++) {
+	uint i = 0;
+getlegalplayer:
+	for (; i < botn; i++) {
 		for (uint j = 0; j < CPPLAYER; j++) {
 			uint* pcards = playerbuf[i].cards;
 			Card pcard = index (deckr.deck,
-					    pcards[j],
-					    deckr.cards - (deckr.playing + deckr.played));
-			// we don't want to the first play wasting a special, it's better to skip the turn
+													pcards[j],
+													deckr.cards - (deckr.playing + deckr.played));
+			// we don't want the first play wasting a special, it's better to skip the turn
 			if (legal (pcard, *top) && pcard.suit != SPECIAL)
 				goto loop;
 		}
 		(void) turn (botn);
 	}
 
-	// somehow NO player has a legal card, it's better to restart the game before it begins
-	// TODO: make it conviently restart (this will be a hassle though...)
-	fputs ("\n\n[ !! ] Randomness error. Please restart the game", stderr);
+	if (i == botn) {
+		i = 0;
+		stacktop--;
+		deckr.played--;
+		drawfirstcard ();
+		goto getlegalplayer;
+	}
+
 	goto done;
 
 loop:
@@ -275,10 +361,10 @@ read:
 			switch (cmd.status) {
 			case CINVALID: goto read;
 			case CQUIT: goto done;
-			case CHELP: while (draw_help (&cmd)); goto read;
+			case CHELP: draw_help_msg (&cmd); goto read;
 			}
 		}
-		else bot_play (&cmd, 0);
+		else bot_play (&cmd, 0);//DEBUG
 
 		stat = update_game (&cmd);
 
@@ -290,20 +376,20 @@ read:
 			msgsend_info (MSGINFOCODE);
 			goto read;
 		case GDRAW:
-			draw_display ();
+			end_as_draw ();
 			goto done;
 		case GEND:
-			win_display (cmd.p);
+			end_as_win (cmd.p);
 			goto done;
 		}
 
-		cmd.p = turn (botn);
+		//cmd.p = turn (botn);//DEBUG
 		update_display (cmd.p);
 	}
 
 done:
 	//free (deckr.deck);
-	//free (display.deck);
+	//free (display.buf);
 
 	return 0;
 }

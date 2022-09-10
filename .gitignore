@@ -3,9 +3,12 @@
 nou
 core/
 
+# Building system
+make/*.mk
+make/Objects.m4
+
 # Dev
 dev/
 *.log
 *.task
-make/*.mk
 [Tt][Aa][Gg][Ss]

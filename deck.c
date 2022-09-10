@@ -36,9 +36,11 @@ int sort (Deckr* deckr) {
 	Player* owner;
 	uint playeroff[playern], playeri;
 
-	for (uint _ = 0; _ < playern; _++)
+	for (uint _ = 0; _ < playern; _++) {
 		playeroff[_] = 0;
+	}
 
+	// get a vacant index
 	for (uint _ = 0; _ < cards; _++) {
 		card = &index (deck, _, cards);
 		owner = card->owner;
@@ -53,8 +55,10 @@ int sort (Deckr* deckr) {
 		}
 	}
 	
-	if (lvacant_i == -1u)
+	// if there are no vacant indices lefts, error that there no cards left
+	if (lvacant_i == -1u) {
 		return NOCARDS;
+	}
 
 	for (uint i = lvacant_i, vacant_i = 0; i < cards; i++) {
 		card = &index (deck, i, cards);
@@ -66,7 +70,6 @@ int sort (Deckr* deckr) {
 		}
 		else if (owner) {
 			playing--;
-
 			if (vacant) {
 				playeri = (card->owner - player);
 				owner->cards[playeroff[playeri]] = (card - card0) - 1;
@@ -151,26 +154,32 @@ uint seeded (uint n) {
 	return ret;
 }
 
-void swap (Deck* deck, uint i, uint pcards) {
-	//uint _i = seeded (pcards) + i;
-	uint _i = (seeded (pcards) + i) % pcards;
-	if (! _i) return;
+static void swap (Deck* deck, uint i, uint pcards) {
+	uint _i = seeded (pcards - i) + i;
+
+	if (_i == i) {
+		return;
+	}
+
 	Card tmp = index (deck, i, pcards);
 	index (deck, i, pcards) = index (deck, _i, pcards);
 	index (deck, _i, pcards) = tmp;
 }
 
 void shuffle (Deckr* deckr, uint pcards) {
-	//TODO: `pcards' should shift the shufflable deck up by itself
 	Deck* deck = deckr->deck;
-	for (uint i = 0; i < pcards; i++)
+	for (uint i = 0; i < pcards; i++) {
 		swap (deck, i, pcards);
+	}
 }
 
 static void ringswap (Player** ring, uint i, uint botn) {
-	//uint _i = seeded (botn) + i;
-	uint _i = (seeded (botn) + i) % botn;
-	if (! _i) return;
+	uint _i = seeded (botn - i) + i;
+
+	if (_i == i) {
+		return;
+	}
+
 	Player* tmp = ring[i];
 	ring[i] = ring[_i];
 	ring[_i] = tmp;
@@ -209,14 +218,15 @@ static void drawcards (uint botn, uint cardn) {
 	}
 }
 
-void popplayers (Deckr* deckr, uint botn, uint cardn) { // populate the bots' cards
+void popplayers (Deckr* deckr, uint botn, uint cardn) {
 	playerbuf = malloc (botn * sizeof (Player));
 	botbuf = malloc ((botn - 1) * sizeof (Bot));
 
 	playerringbuf = malloc (botn * sizeof (Player*));
 
-	for (uint i = 0; i < botn; i++)
+	for (uint i = 0; i < botn; i++) {
 		playerringbuf[i] = &playerbuf[i];
+	}
 
 	popbots (botn);
 	ringshuffle (playerringbuf, botn);

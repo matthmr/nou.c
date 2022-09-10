@@ -1,10 +1,10 @@
 default: nou
 
-include make/Flags.mk
-include make/Objects.mk
-include make/Targets.mk
+-include make/Flags.mk
+-include make/Objects.mk
+-include make/Targets.mk
 
-MAKEFILES:=make/Flags.mk make/Objects.mk make/Targets.mk make/Autodep.mk
+MAKEFILES:=make/Flags.mk make/Objects.mk make/Targets.mk make/Autodep.mk make/Objects.m4
 DOCUMENTATION:=docs/nou.1
 
 #$(OBJECTS):

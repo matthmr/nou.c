@@ -9,28 +9,30 @@ typedef char schar[4];
 
 #  define PLAYERDECKCOLUM (7)
 
-#  define PROMPTLEN (8) // (P0) \n\n
-#  define CARDLEN (1 \
-		   + sizeof (ansi) + sizeof (schar) + 1 + sizeof (wchar) \
-		   + sizeof (ansi) + 1) // [J ♣]
-#  define ESCLEN (8) // <esc>[..;..m
-#  define MAXCARDSLEN (5) // got `18036`
-#  define MAXPLAYERLEN (3)
+#  define PROMPTLEN (8)                                                    /* (P0) \n<msg>\n\n */
+#  define CARDLEN (1 + \
+									 sizeof (ansi) + sizeof (schar) + 1 + sizeof (wchar) +   /* [J ♣] */ \
+									 sizeof (ansi) + 1)
+#  define ESCLEN (8)                                                       /* <esc>[..;..m */
+#  define MAXCARDSLEN (5)                                                  /* got `18036` */
+#  define MAXPLAYERLEN (3)                                                 /* got `999' */
 
-#  define PLAYERENTRYLEN (1 + MAXPLAYERLEN + 1 + 1 + MAXCARDSLEN + 1)      /* P<n>: <m> */
-#  define PLAYERHIGHENTRYLEN (ESCLEN \
-			      + 1 + MAXPLAYERLEN + 1 + 1 + \
-			      MAXCARDSLEN + 1 + 3 + ESCLEN + 1)           /* <esc>P<n>: <m> [*]<esc> */
-#  define DECKENTRYLEN (1 + 1 + 1 + MAXCARDSLEN + 1                       /* D: <n>       */ \
-                        + 1 + 1 + 1 + MAXCARDSLEN + 1 + CARDLEN + 1)      /* P: <n> [J ♣] */
+#  define PLAYERENTRYLEN (1 + MAXPLAYERLEN + 1 + 1 + MAXCARDSLEN + 1) /* P<n>: <m> */
+#  define PLAYERHIGHENTRYLEN (ESCLEN +                                /* <esc>P<n>: <m> [*]<esc> */ \
+															1 + MAXPLAYERLEN + 1 + 1 + \
+															MAXCARDSLEN + 1 + 3 + ESCLEN + 1)
+#  define DECKENTRYLEN (1 + 1 + 1 + MAXCARDSLEN + 1 +                 /* D: <n>       */ \
+                        1 + 1 + 1 + MAXCARDSLEN + 1 + CARDLEN + 1)    /* P: <n> [J ♣] */
 typedef char ansi[ESCLEN];
-typedef char CardNID[MAXCARDSLEN];
+
+// <n>:
+typedef char CardNumId[MAXCARDSLEN];
 
 // [J ♣]
 typedef char CardCell[CARDLEN];
 
 // 1:[J ♣]
-typedef char PlayerCardCell[sizeof (CardNID) + 1 + sizeof (CardCell) + 1];
+typedef char PlayerCardCell[sizeof (CardNumId) + 1 + sizeof (CardCell) + 1];
 
 // P<n>: <m>
 typedef char PlayerHighlightEntry[PLAYERHIGHENTRYLEN];
@@ -40,8 +42,8 @@ extern const schar numpm[];
 extern const wchar suitpm[];
 
 typedef struct display {
-	char* player, * entry, * deck, * prompt;
-	uint playerbs, entrybs, deckbs, promptbs;
+	char* buf;
+	uint bufs;
 } Display;
 
 extern Display display;
@@ -52,12 +54,12 @@ void update_display (Player*);
 void init_display (uint);
 void fix_display (void);
 
-int draw_help (Cmd*);
+int draw_help_msg (Cmd*);
 
-void win_display (Player*);
-void draw_display (void);
+void end_as_win (Player*);
+void end_as_draw (void);
 
-void set_draw_players_entry_reverse (void);
+void reverse_draw_players (void);
 
 #endif
 
