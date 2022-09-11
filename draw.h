@@ -50,9 +50,9 @@ extern Display display;
 
 void error_display (const char*);
 void info_display (const char*, uint);
-void update_display (Player*);
 void init_display (uint);
 void fix_display (void);
+void update_display (Cmd*);
 
 int draw_help_msg (Cmd*);
 

@@ -59,13 +59,13 @@ static inline Card* take_card (void) {
 static inline void player_append (Player* p, Card* card) {
 	// TODO: smart memory cleaning; it's not needed now because
 	// even the most leaky allocs are only about ~4KB in size
-	// TODO: fix this function's bug
 	if (p->cardi == p->cardn) {
-		fprintf (stderr, "\n== called `realloc' on %d ==\n", p->cardn);//DEBUG
+		//fprintf (stderr, "\n== called `realloc' on %d ==\n", p->cardn);//DEBUG
 		p->cardn += CARDN;
 		p->cards = realloc (p->cards,	p->cardn * sizeof (uint));
 	}
 	p->cards[p->cardi] = (card - card0);
+
 	//DEBUG {
 	// uint pcardi = p->cardi;
 	// uint* pcards = p->cards;
@@ -74,6 +74,7 @@ static inline void player_append (Player* p, Card* card) {
 	// 	fprintf (stderr, "[%d] = %d, ", i, pcards[i]);
 	// }
 	//DEBUG }
+
 	p->cardi++;
 }
 
@@ -285,15 +286,18 @@ static Gstat update_game (Cmd* cmd) {
 	switch (cmd->ac.cmd) {
 	case PLAY:
 		pcard = &index (deckr.deck,
-				cmd->p->cards[cmd->ac.target-1],
-				deckr.cards);
+										cmd->p->cards[cmd->ac.target-1],
+										deckr.cards);
 
 		// ensure suit
-		if (pcard->suit == SPECIAL && csuit == NOSUIT)
+		if (pcard->suit == SPECIAL && csuit == NOSUIT) {
 			EMSGCODE (EMISSINGSUIT);
+		}
 
 		// ensure legal
-		if (! legal (*pcard, *top)) EMSGCODE (EILLEGAL);
+		if (! legal (*pcard, *top)) {
+			EMSGCODE (EILLEGAL);
+		}
 
 		play (cmd->p, pcard, (cmd->ac.target-1));
 
@@ -364,7 +368,7 @@ read:
 			case CHELP: draw_help_msg (&cmd); goto read;
 			}
 		}
-		else bot_play (&cmd, 0);//DEBUG
+		else bot_play (&cmd, 0 /*(cmd.p - player) - 1*/);//DEBUG
 
 		stat = update_game (&cmd);
 
@@ -384,7 +388,7 @@ read:
 		}
 
 		//cmd.p = turn (botn);//DEBUG
-		update_display (cmd.p);
+		update_display (&cmd);
 	}
 
 done:

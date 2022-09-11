@@ -4,9 +4,9 @@
 #include "nou.h"
 
 Player* playerbuf = NULL, * player = NULL;
-Bot* botbuf = NULL;
-
 uint playern = 0;
+
+Bot* botbuf = NULL;
 
 void bot_play (Cmd* cmd, uint boti) {
 

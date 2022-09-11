@@ -26,6 +26,7 @@ uint seed, reseed;
 
 static Player** playerringbuf;
 
+// TODO: fix a bug in which sorting an empty deck fails somehow
 int sort (Deckr* deckr) {
 	Deck* deck = deckr->deck;
 	uint cards = deckr->cards, playing = deckr->playing;
