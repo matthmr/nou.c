@@ -60,12 +60,12 @@ extern Deckr deckr;
 
 extern uint seed, reseed;
 extern Card* top;
-extern Card* card0;
-extern Card* stacktop, * decktop;
+
+extern Card* stacktop, * stackbase;
+extern Card* decktop, * deckbase;
 
 extern Suit csuit;
 extern uint acc, pacc;
-extern bool block, reverse;
 
 extern Direction dir;
 
@@ -79,6 +79,6 @@ void popplayers (Deckr*, uint, uint);
 void popdeck (Deckr*);
 
 #  define NOCARDS 1
-int sort (Deckr*);
+int sort (void);
 
 #endif

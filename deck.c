@@ -16,8 +16,9 @@ Deckr deckr = {
 
 //Deck* deck = NULL;
 Card* top = NULL;
-Card* card0 = NULL;
-Card* stacktop = NULL, * decktop = NULL;
+
+Card* stacktop = NULL, * stackbase = NULL;
+Card* decktop = NULL, * deckbase = NULL;
 
 Suit csuit = NOSUIT;
 uint acc = 0;
@@ -26,22 +27,18 @@ uint seed, reseed;
 
 static Player** playerringbuf;
 
-// TODO: fix a bug in which sorting an empty deck fails somehow
-int sort (Deckr* deckr) {
-	Deck* deck = deckr->deck;
-	uint cards = deckr->cards, playing = deckr->playing;
+static uint sort_vacanti (uint* playing, uint* playeroff) {
+	Deck* deck = deckr.deck;
+	uint cards = deckr.cards;
 
-	Card* vacant = NULL, *card = NULL, tmp;
+	Card* card = NULL;
+	Player* owner = NULL;
+
+	uint _playing = *playing;
+	uint playeri = 0;
+
 	uint lvacant_i = -1u;
 
-	Player* owner;
-	uint playeroff[playern], playeri;
-
-	for (uint _ = 0; _ < playern; _++) {
-		playeroff[_] = 0;
-	}
-
-	// get a vacant index
 	for (uint _ = 0; _ < cards; _++) {
 		card = &index (deck, _, cards);
 		owner = card->owner;
@@ -50,30 +47,46 @@ int sort (Deckr* deckr) {
 			break;
 		}
 		else {
-			playing--;
+			_playing--;
 			playeri = (card->owner - player);
 			playeroff[playeri]++;
 		}
 	}
-	
-	// if there are no vacant indices lefts, error that there no cards left
-	if (lvacant_i == -1u) {
-		return NOCARDS;
-	}
 
-	for (uint i = lvacant_i, vacant_i = 0; i < cards; i++) {
+	*playing = _playing;
+
+	return lvacant_i;
+}
+
+static void _sort (uint i, uint* playing, uint* playeroff) {
+	Deck* deck = deckr.deck;
+	uint cards = deckr.cards;
+
+	Card* vacant = NULL, *card = NULL, tmp;
+
+	Player* owner;
+
+	uint _playing = *playing;
+	uint playeri = 0;
+
+	for (uint vacant_i = 0; i < cards; i++) {
 		card = &index (deck, i, cards);
 		owner = card->owner;
 
+		// found a vacant card: mark it
 		if (!owner && !vacant) {
 			vacant_i = i;
 			vacant = card;
 		}
+
+		// found an owned card: ...
 		else if (owner) {
-			playing--;
+			_playing--;
+
+			// ... if there is a vacant card before it, recompute the index then swap ...
 			if (vacant) {
 				playeri = (card->owner - player);
-				owner->cards[playeroff[playeri]] = (card - card0) - 1;
+				owner->cards[playeroff[playeri]] = (vacant - deckbase);
 				playeroff[playeri]++;
 
 				tmp = *card;
@@ -82,16 +95,54 @@ int sort (Deckr* deckr) {
 
 				vacant = NULL;
 				i = vacant_i;
-				continue;
 			}
+
+			// ... otherwise, save the index as normal
 			else {
 				playeri = (card->owner - player);
-				owner->cards[playeroff[playeri]] = (card - card0);
+				owner->cards[playeroff[playeri]] = (card - deckbase);
 				playeroff[playeri]++;
 			}
 		}
-		else if (! playing) break;
+		// short-circuit
+		else if (! _playing) {
+			break;
+		}
 	}
+
+	*playing = _playing;
+}
+
+int sort (void) {
+	Deck* deck = deckr.deck;
+	uint cards = deckr.cards, playing = deckr.playing;
+
+	uint playeroff[playern];
+
+	uint lvacant_i = -1u;
+	uint stackbase_i = (cards - 1);
+
+	for (uint _ = 0; _ < playern; _++) {
+		playeroff[_] = 0;
+	}
+
+	lvacant_i = sort_vacanti (&playing, (uint*)playeroff);
+
+	if (lvacant_i == -1u) {
+		return NOCARDS;
+	}
+
+	_sort (lvacant_i, &playing, (uint*)playeroff);
+
+	// NOTE: this assumes the last index is vacant
+	while (!index (deck, stackbase_i, cards).owner) {
+		stackbase_i--;
+	}
+
+	stackbase = (deckbase + stackbase_i) + 1;
+
+	// account for the increment in `take_from_stack'
+	stacktop = stackbase - 1;
 
 	return 0;
 }
@@ -126,32 +177,44 @@ iter:
 	c = 0;
 
 	i++;
-	if (i != n) goto iter;
-	card0 = &deckr->deck[0][0];
+	if (i != n) {
+		goto iter;
+	}
 };
 
 uint reseedr (uint primr) {
-	if (! primr) primr = seed + reseed;
+	if (! primr) {
+		primr = seed + reseed;
+	}
+
 	uint div = primr < seed? (seed / primr): (primr / seed);
 	uint reseedbits = div % (sizeof reseed);
+
 	reseed <<= reseedbits;
 	reseed |= ONES (reseedbits);
+
 	return seed ^ reseed;
 }
 
 uint seedr (uint primr) {
-	if (! primr) primr = seed + reseed;
+	if (! primr) {
+		primr = seed + reseed;
+	}
+
 	uint div = primr < seed? (seed / primr): (primr / seed);
 	uint reseedbits = div % (sizeof reseed);
+
 	reseed |= seed;
 	reseed <<= reseedbits;
 	reseed ^= seed;
+
 	return reseedr (reseed+1);
 }
 
 uint seeded (uint n) {
 	uint ret = seed % n;
 	seed = seedr (ret);
+
 	return ret;
 }
 
@@ -187,11 +250,12 @@ static void ringswap (Player** ring, uint i, uint botn) {
 }
 
 static inline void ringshuffle (Player** ring, uint botn) {
-	for (uint i = 0; i < botn; i++)
+	for (uint i = 0; i < botn; i++) {
 		ringswap (ring, i, botn);
+	}
 }
 
-static void popbots (uint botn) {
+static void allocplayers (uint botn) {
 	Player* bot;
 
 	player = &playerbuf[0];
@@ -212,10 +276,10 @@ static void popbots (uint botn) {
 
 static void drawcards (uint botn, uint cardn) {
 	for (uint cn = 0; cn < CPPLAYER; cn++) {
-		for (uint i = 0; i < botn; i++) {
-			(void) take (playerringbuf[i], 1, true);
-		}
 		ringshuffle (playerringbuf, botn);
+		for (uint i = 0; i < botn; i++) {
+			(void) take (playerringbuf[i], 1, ALWAYS);
+		}
 	}
 }
 
@@ -229,8 +293,8 @@ void popplayers (Deckr* deckr, uint botn, uint cardn) {
 		playerringbuf[i] = &playerbuf[i];
 	}
 
-	popbots (botn);
-	ringshuffle (playerringbuf, botn);
+	stackbase = deckbase;
+	allocplayers (botn);
 	drawcards (botn, cardn);
 
 	free (playerringbuf);

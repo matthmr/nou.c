@@ -147,19 +147,18 @@ done:
 typedef struct {
 	CmdStat master;
 	enum {
-		_SLAVE_GOTO_DONE = 1,
-		_SLAVE_RETURN,
+		_SLAVE_GOTO_DONE = 1,	_SLAVE_RETURN
 	} slave;
 } CmdStatEasy;
 
-static CmdStatEasy cmdparse_easyones (short easy, Cmd* lastcmd, Cmd* cmd, enum err* ecode) {
+static CmdStatEasy cmdparse_easyones (char* buf, Cmd* lastcmd, Cmd* cmd, enum err* ecode) {
+	short easy = *(short*)buf;
 	CmdStatEasy ret = {0};
-	short __little_endian;
 
 	// NOTE: I'm not sure why `read' inverts the bytes so I just
 	// invert them back. If anyone encounters a bug with this,
 	// comment out the next 3 lines
-	__little_endian = (easy & 0x00ff) << 8;
+	short __little_endian = (easy & 0x00ff) << 8;
 	easy >>= 8;
 	easy |= __little_endian;
 
@@ -167,11 +166,11 @@ static CmdStatEasy cmdparse_easyones (short easy, Cmd* lastcmd, Cmd* cmd, enum e
 	case CMDHELP:
 		ret.master = CHELP;
 		ret.slave = _SLAVE_RETURN;
-		return ret;
+		break;
 	case CMDQUIT:
 		ret.master = CQUIT;
 		ret.slave = _SLAVE_RETURN;
-		return ret;
+		break;
 	case CMDNONE:
 		if (lastcmd->ac.cmd == NOCMD) {
 			*ecode = ENOPREVCMD;
@@ -180,13 +179,14 @@ static CmdStatEasy cmdparse_easyones (short easy, Cmd* lastcmd, Cmd* cmd, enum e
 		}
 		else {
 			*cmd = *lastcmd;
+			
 			ret.master = COK;
 			ret.slave = _SLAVE_GOTO_DONE;
 		}
-		return ret;
-	default: return ret;
+		break;
 	}
 
+	return ret;
 }
 
 typedef struct {
@@ -205,16 +205,22 @@ static CmdStatNum cmdparse_number (char* buf, enum err* ecode) {
 	char c = buf[i];
 
 	// `0' prefix
-	if (buf[i] == '0') goto invalid_prefix;
+	if (buf[i] == '0') {
+		goto invalid_prefix;
+	}
 
 	// dirty hack for `pos'
 	INC (c, buf, i);
 
 	// find out how many digits we have
-	ITER (c, buf, i, CMDBUFF) if (NUMBER (c)) pos *= 10, d++;
+	ITER (c, buf, i, CMDBUFF) {
+		if (NUMBER (c)) {
+			pos *= 10, d++;
+		}
+	}
 
 	if (d > MAXCARDSLEN) {
-		invalid_prefix:
+invalid_prefix:
 		*ecode = ENOSUCHCARDID;
 		ret.master = CINVALID;
 		ret.slave = _SLAVE_GOTO_INVALID_PREFIX;
@@ -299,15 +305,15 @@ static CmdStat cmdparse (Cmd* cmd, enum err* ecode) {
 	char c = cmdbuf[i];
 
 	// look for the easy ones first
-	CmdStatEasy stateasy = cmdparse_easyones (*(short*) cmdbuf,
-						  &lastcmd,
-						  cmd,
-						  ecode);
+	CmdStatEasy stateasy = cmdparse_easyones (cmdbuf,	&lastcmd, cmd, ecode);
+
 	if (stateasy.slave != _SLAVE_IGNORE) {
-		if (stateasy.slave == _SLAVE_GOTO_DONE)
+		switch (stateasy.slave) {
+		case _SLAVE_GOTO_DONE:
 			goto done;
-		else if (stateasy.slave == _SLAVE_RETURN)
+		case _SLAVE_RETURN:
 			return stateasy.master;
+		}
 	}
 
 	// prefixing <.>: take by amount
@@ -324,8 +330,9 @@ static CmdStat cmdparse (Cmd* cmd, enum err* ecode) {
 			CmdStatNum statnum = cmdparse_number (cmdbuf+1, ecode);
 
 			// clear overshot
-			if (statnum.num > (deckr.cards - (deckr.played + deckr.playing)))
+			if (statnum.num > (deckr.cards - (deckr.played + deckr.playing))) {
 				ECODE (EINVALIDCMD);
+			}
 
 			if (statnum.slave == _SLAVE_IGNORE) {
 				cmd->ac.cmd = TAKE;
@@ -505,8 +512,12 @@ parse:
 	_read = read (0, cmdbuf, CMDBUFF);
 
 	// handle C-d (aka '\0' terminated read callbacks)
-	if (! _read) goto parse;
-	else if (cmdbuf[_read-1] != '\n') fix_display (); // TODO<-
+	if (! _read) {
+		goto parse;
+	}
+	else if (cmdbuf[_read-1] != '\n') {
+		fix_display (); // TODO<-
+	}
 
 	cmdbuf[_read] = '\0';
 	cmd->status = cmdparse (cmd, &ecode);

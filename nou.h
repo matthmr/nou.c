@@ -5,20 +5,20 @@
 #  include "deck.h"
 #  include "players.h"
 
-#  define VERSION "v0.5.1"
+#  define VERSION "v0.5.2"
 #  define PROG "nou"
 
 #  define EMSGCODE(x) return MSGERRCODE = (x), GMSG_ERR
 
-#  define MKOWNER(p,c)	\
-	(c)->owner = (p);			\
-	deckr.playing++
+#  define MKOWNER(p,c)													\
+	(c)->owner = (p),															\
+		deckr.playing++
 
-#  define RMOWNER(c)	\
-	(c)->owner = (NULL);	\
-	deckr.playing--;			\
-	deckr.played++;				\
-	top = (c)
+#  define RMOWNER(c)														\
+	(c)->owner = (NULL),													\
+		deckr.playing--,														\
+		deckr.played++,															\
+		top = (c)
 
 typedef enum {
 	GDRAW, GEND, GCONT,

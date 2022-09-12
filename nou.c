@@ -10,6 +10,8 @@
 
 char* cmdbuff = NULL;
 
+static bool block = false, reverse = false;
+
 bool legal (Card playing, Card played) {
 	Suit suit = played.suit, psuit = playing.suit;
 	Number num = played.number, pnum = playing.number;
@@ -30,24 +32,16 @@ bool legal (Card playing, Card played) {
 	return (pnum == num || psuit == suit || psuit == SPECIAL);
 }
 
-static inline Card* take_card (void) {
-	// NOTE: the `stacktop' variable points to the card that is available
-	// to play; 
-	static bool lock_stacktop_empty = false;
-
+static inline Card* take_from_stack (void) {
 	if (! stacktop) {
-		stacktop = card0;
+		stacktop = stackbase;
 	}
 	else {
 		stacktop++;
 	}
 
-	if (stacktop == decktop) {
-		lock_stacktop_empty = true;
-	}
-	else if (lock_stacktop_empty) {
-		lock_stacktop_empty = false;
-		return stacktop = NULL;
+	if (stacktop > decktop) {
+		stacktop = NULL;
 	}
 
 	return stacktop;
@@ -60,33 +54,22 @@ static inline void player_append (Player* p, Card* card) {
 	// TODO: smart memory cleaning; it's not needed now because
 	// even the most leaky allocs are only about ~4KB in size
 	if (p->cardi == p->cardn) {
-		//fprintf (stderr, "\n== called `realloc' on %d ==\n", p->cardn);//DEBUG
 		p->cardn += CARDN;
 		p->cards = realloc (p->cards,	p->cardn * sizeof (uint));
 	}
-	p->cards[p->cardi] = (card - card0);
-
-	//DEBUG {
-	// uint pcardi = p->cardi;
-	// uint* pcards = p->cards;
-	// fprintf (stderr, "\n[player_append] :: %p\n", p);
-	// for (uint i = 0; i < pcardi; i++) {
-	// 	fprintf (stderr, "[%d] = %d, ", i, pcards[i]);
-	// }
-	//DEBUG }
-
+	p->cards[p->cardi] = (card - deckbase);
 	p->cardi++;
 }
 
 static int drawfirstcard (void) {
 	uint available = (deckr.cards - deckr.playing);
-
-	// we need at least another card in the stack
-	if (available < 2) {
-		return NOCARDS;
-	}
-
 	uint ccardi;
+
+	// NOTE: this might be redundant
+	// if (available < 2) {
+	// 	return NOCARDS;
+	// }
+
 draw:
 	// draw the initial card
 	ccardi = seeded (available) + deckr.playing;
@@ -98,11 +81,14 @@ draw:
 	    dnum == _K || dnum == _Q || dnum == _J
 	)) goto draw;
 	else {
-		stacktop++;
-		// swap the chosen card against the current top
+
+		(void) take_from_stack ();
+
+		// swap the chosen card against the current stack top
 		Card tmp = *stacktop;
 		*stacktop = *ccard;
 		*ccard = tmp;
+
 		top = stacktop;
 		deckr.played++;
 	}
@@ -110,21 +96,46 @@ draw:
 	return 0;
 }
 
-static Gstat reshuffle (uint* cardi) {
-	int sortstat = sort (&deckr);
+static Gstat reshuffle (uint* cardi, Card* __top) {
+	Card _top = *__top;
 
-	if (sortstat == NOCARDS) {
+	// this implements the "top card must stay on top after reshuffle" rule
+	if (deckr.played < 2) {
+		//printf ("die here = %d\ndeckr.played = %d\n",	__LINE__,	deckr.played);
 		return GDRAW;
 	}
 
+	(void) sort ();
+
 	shuffle (&deckr, deckr.played);
-	deckr.played = 0;
+	deckr.played = 1;
 
 	*cardi = deckr.cards - (deckr.playing + deckr.played);
 
-	Gstat dfcstat = drawfirstcard ();
+	Deck* deck = deckr.deck;
+	uint cards = deckr.cards;
 
-	return dfcstat? GDRAW: GOK;
+	Card* card;
+	uint lim = (cards - (decktop - stacktop)) - 1;
+
+	// look for the last top card, put it on top again
+	for (uint i = (cards-1); i > lim; i--) {
+		card = &index (deck, i, cards);
+
+		// NOTE: finding a duplicate here actually doensn't matter that much
+		if (card->number == _top.number && card->suit == _top.suit) {
+			Card* swp = take_from_stack ();
+			Card tmp = *swp;
+
+			*swp = *card;
+			*card = tmp;
+
+			top = swp;
+			break;
+		}
+	}
+
+	return GOK;
 }
 
 Gstat take (Player* p, uint am, bool always) {
@@ -143,7 +154,7 @@ Gstat take (Player* p, uint am, bool always) {
 	// skip `E3LEGAL' blocking
 	if (always) {
 		if (! cardi) {
-			Gstat reshufflestat = reshuffle (&cardi);
+			Gstat reshufflestat = reshuffle (&cardi, top);
 			if (reshufflestat != GOK) {
 				return reshufflestat;
 			}
@@ -153,11 +164,14 @@ Gstat take (Player* p, uint am, bool always) {
 
 	// trigger reshuffle
 	else if (! cardi) {
-		Gstat reshufflestat = reshuffle (&cardi);
+		Gstat reshufflestat = reshuffle (&cardi, top);
 		if (reshufflestat != GOK) {
 			return reshufflestat;
 		}
 	}
+
+//DEBUG
+	goto takeloop;
 
 	// UPDATE (20220908): I decided to make special cards an exception to this rule
 	for (uint i = 0; i < pcardi; i++) {
@@ -174,7 +188,7 @@ Gstat take (Player* p, uint am, bool always) {
 takeloop:
 	for (uint _ = 0; _ < am; _++) {
 takecard:
-		card = take_card ();
+		card = take_from_stack ();
 		if ((card && top) && legal (*card, *top)) {
 			alegal++;
 			if (alegal == 4) {
@@ -183,10 +197,10 @@ takecard:
 			}
 		}
 		if (!card) {
-			if (sort (&deckr) == NOCARDS) {
-				return GDRAW;
+			Gstat reshufflestat = reshuffle (&cardi, top);
+			if (reshufflestat != GOK) {
+				return reshufflestat;
 			}
-			shuffle (&deckr, deckr.played);
 			goto takecard;
 		}
 		MKOWNER (p, card);
@@ -250,10 +264,12 @@ static void gameinit (Deckr* deckr, uint botn) {
 	deckr->n = n;
 	deckr->deck = malloc (cards * sizeof (Card));
 	deckr->cards = cards;
+	deckr->played = 0;
 	// NOTE: this fills itself up at `popplayers'-time
 	//deckr->playing = PLAYING (botn);
-	deckr->played = 0;
+
 	decktop = &deckr->deck[n-1][CPDECK-1];
+	deckbase = &deckr->deck[0][0];
 	popdeck (deckr);
 
 	// shuffle the deck

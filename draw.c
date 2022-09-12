@@ -38,8 +38,6 @@
 Display display;
 uint lines = 0;
 
-bool block = false, reverse = false;
-
 static char movbackbuf[3 + MAXCARDSLEN + 4]; /* <esc>[<n>b<esc>[5c */
 static uint movbackbuflen = 0;
 
@@ -194,7 +192,7 @@ static char* draw_command_prompt (char* buf) {
 	return _buf;
 }
 
-static char* draw_players_deck (char* buf, Player* p, uint am) {
+static char* draw_players_deck (char* buf, Player* p) {
 	static uint prevcardi = CPPLAYER;
 	static uint prevdecklines = 1;
 
@@ -246,8 +244,13 @@ static char* draw_game_deck (char* buf, uint dcardn, uint pcardn, Card* pcard) {
 	_buf = _itoa_draw (_buf, dcardn);
 	_buf = _str_embed_draw (_buf, "\n" ERASE2ENDLINE "P: ");
 	_buf = _itoa_draw (_buf, pcardn);
-	_buf = _str_embed_draw (_buf, " ");
-	_buf = _draw_card_cell (_buf, pcard, 0);
+
+	// avoid drawing if there are no cards played
+	if (pcardn) {
+		_buf = _str_embed_draw (_buf, " ");
+		_buf = _draw_card_cell (_buf, pcard, 0);
+	}
+
 	_buf = _str_embed_draw (_buf, "\n" ERASE2ENDLINE);
 	_buf = _str_embed_draw (_buf, "\n");
 
@@ -305,11 +308,11 @@ static void send_cursor_to_prompt (void) {
 }
 // -- draw stack bottom -- //
 
-static void draw_stack (uint pid, uint am) {
+static void draw_stack (uint pid) {
 	char* _buf = display.buf;
 
 	_buf = draw_command_prompt (_buf);
-	_buf = draw_players_deck (_buf, player, am);
+	_buf = draw_players_deck (_buf, player);
 	_buf = draw_game_deck (_buf,
 												 (deckr.cards - (deckr.playing + deckr.played)),
 												 deckr.played, top);
@@ -349,7 +352,7 @@ void init_display (uint botn) {
 
 	// NOTE: `lines' include newlines :)
 	lines = \
-/* draw_command_prompt */	3 + \
+/* draw_command_prompt */ 3 + \
 /* draw_players_deck */   ((player->cardi / PLAYERDECKCOLUM) + 1) + \
 /* draw_game_deck */      3 + \
 /* draw_players_entry */  botn + \
@@ -357,15 +360,19 @@ void init_display (uint botn) {
 
 	movbackbuf_from_lines (lines);
 
-	draw_stack (0, 1);
+	draw_stack (0);
 }
 
 void error_display (const char* msg) {
 	static bool _error = false;
 
 	// clear the previous message
-	if (_error) write (1, MSG (ERASE2ENDLINE));
-	else _error = true;
+	if (_error) {
+		write (1, MSG (ERASE2ENDLINE));
+	}
+	else {
+		_error = true;
+	}
 
 	puts (msg);
 	prompt_from_error ();
@@ -379,10 +386,6 @@ void update_display (Cmd* cmd) {
 	Player* pplayer = cmd->p;
 	uint pid = pplayer - player;
 
-	// FIX (20220911): there was a draw bug whereby taking cards using cmd->ac.am didn't
-	// update update the `lines' variable so the cursor position was messed up
-	uint am = cmd->ac.am;
-
 	// account for the newline: C-d handle is done at `cmdread'-time
 	write (1, MSG (MOVUP0 ("1")));
 
@@ -393,7 +396,7 @@ void update_display (Cmd* cmd) {
 		allocbuf (&display);
 	}
 
-	draw_stack (pid, am);
+	draw_stack (pid);
 }
 
 // TODO: fix fix_display
@@ -439,7 +442,7 @@ static void clear_help (Cmd* cmd) {
 
 	write (1, buf, (_buf - buf));
 
-	draw_stack (pid, 1);
+	draw_stack (pid);
 }
 
 int draw_help_msg (Cmd* cmd) {
@@ -468,8 +471,7 @@ void reverse_draw_players (void) {
 }
 
 void end_as_win (Player* playerwin) {
-	// P<n> WINS!
-	char buf[1 + MAXCARDSLEN + 6 + 1];
+	char buf[1+MAXCARDSLEN+7] = {0};
 	char* _buf = buf;
 
 	_buf = _str_embed_draw (_buf, "P");
@@ -478,12 +480,13 @@ void end_as_win (Player* playerwin) {
 
 	write (1, MSG (ERASE2ENDLINE));
 
-	memset (_buf, 0, &buf[sizeof (buf) - 1] - _buf);
+	// P<n> WINS!
 	puts (buf);
 }
 
 void end_as_draw (void) {
-	// DRAW! 
 	write (1, MSG (ERASE2ENDLINE));
+
+	// DRAW! 
 	puts ("DRAW!");
 }
