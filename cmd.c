@@ -270,13 +270,15 @@ static CmdStatLegal cmdparse_legalacc (Player* p, enum err* ecode) {
 
 	for (uint i = 0; i < pcardi; i++) {
 		card = index (deckr.deck, p->cards[i], deckr.cards);
+		// give the player a change to counteract
 		if (legal (card, *top)) {
-			ret.master = CACC;
+			ret.master = COK;
 			ret.slave = _SLAVE_LEGAL;
 			goto done;
 		}
 	}
 
+	ret.master = CACC;
 	ret.slave = _SLAVE_IGNORE;
 
 done:
@@ -490,7 +492,7 @@ void msgsend_err (enum err ecode) {
 }
 
 void msgsend_info (enum info icode) {
-	return; // TODO<-
+	return; // TODO: <-
 }
 
 void cmdread (Cmd* cmd) {
@@ -503,7 +505,9 @@ void cmdread (Cmd* cmd) {
 	if (acc) {
 		CmdStatLegal statlegalacc = cmdparse_legalacc (cmd->p, &ecode);
 		if (statlegalacc.slave == _SLAVE_IGNORE) {
+			// TODO: send an info message
 			cmd->status = statlegalacc.master;
+			return;
 		}
 	}
 
@@ -516,7 +520,7 @@ parse:
 		goto parse;
 	}
 	else if (cmdbuf[_read-1] != '\n') {
-		fix_display (); // TODO<-
+		fix_display (); // TODO: <-
 	}
 
 	cmdbuf[_read] = '\0';
@@ -525,8 +529,6 @@ parse:
 	// something went wrong
 	if (ecode != EOK) {
 		error_display (errmsg[ecode]);
-		// NOTE: the line below could be removed. I just kept it
-		// to spare a function call :)
 		goto parse;
 	}
 }

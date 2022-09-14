@@ -5,10 +5,13 @@
 #  include "deck.h"
 #  include "players.h"
 
-#  define VERSION "v0.5.2"
+#  define VERSION "v0.6.0"
 #  define PROG "nou"
 
-#  define EMSGCODE(x) return MSGERRCODE = (x), GMSG_ERR
+#  define EMSGCODE(x)														\
+	return MSGERRCODE = (x), GMSG_ERR
+#  define EMSGCODESLAVE(x,y)										\
+	return MSGERRCODE = (x), (y).master = GMSG_ERR, (y)
 
 #  define MKOWNER(p,c)													\
 	(c)->owner = (p),															\

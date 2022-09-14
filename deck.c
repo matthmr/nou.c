@@ -182,9 +182,23 @@ iter:
 	}
 };
 
-uint reseedr (uint primr) {
+uint reseeder (uint primr) {
+	uint _primr = primr;
+
+reseeder_primr:	
 	if (! primr) {
-		primr = seed + reseed;
+		primr += (reseed ^ _primr);
+		primr++;
+		_primr++;
+		goto reseeder_primr;
+	}
+	else {
+reseeder_seed:
+		if (! seed) {
+			seed ^= reseed;
+			seed++;
+			goto reseeder_seed;
+		}
 	}
 
 	uint div = primr < seed? (seed / primr): (primr / seed);
@@ -196,9 +210,23 @@ uint reseedr (uint primr) {
 	return seed ^ reseed;
 }
 
-uint seedr (uint primr) {
+uint seeder (uint primr) {
+	uint _primr = primr;
+
+seeder_primr:	
 	if (! primr) {
-		primr = seed + reseed;
+		primr += (reseed ^ _primr);
+		primr++;
+		_primr++;
+		goto seeder_primr;
+	}
+	else {
+seeder_seed:
+		if (! seed) {
+			seed ^= reseed;
+			seed++;
+			goto seeder_seed;
+		}
 	}
 
 	uint div = primr < seed? (seed / primr): (primr / seed);
@@ -208,12 +236,16 @@ uint seedr (uint primr) {
 	reseed <<= reseedbits;
 	reseed ^= seed;
 
-	return reseedr (reseed+1);
+	return reseeder (seed+reseed+1);
 }
 
 uint seeded (uint n) {
-	uint ret = seed % n;
-	seed = seedr (ret);
+	uint ret = 0;
+	seed = seeder (seed+reseed+1);
+
+	ret = (seed + reseed) % n;
+
+	reseeder (ret);
 
 	return ret;
 }
@@ -266,7 +298,7 @@ static void allocplayers (uint botn) {
 
 	for (uint i = 1; i < botn; i++) {
 		bot = &playerbuf[i];
-		//init_bot (0.0f, i);
+		bot_init (i);
 		bot->tag = BOT;
 		bot->cards = malloc (CARDN * sizeof (uint));
 		bot->cardn = CARDN;
@@ -285,8 +317,7 @@ static void drawcards (uint botn, uint cardn) {
 
 void popplayers (Deckr* deckr, uint botn, uint cardn) {
 	playerbuf = malloc (botn * sizeof (Player));
-	botbuf = malloc ((botn - 1) * sizeof (Bot));
-
+	legalbuf = malloc ((botn - 1) * sizeof (Legal*));
 	playerringbuf = malloc (botn * sizeof (Player*));
 
 	for (uint i = 0; i < botn; i++) {

@@ -8,6 +8,8 @@
 #include "nou.h"
 #include "cmd.h"
 
+#define _SLAVE_OK 0
+
 char* cmdbuff = NULL;
 
 static bool block = false, reverse = false;
@@ -64,11 +66,6 @@ static inline void player_append (Player* p, Card* card) {
 static int drawfirstcard (void) {
 	uint available = (deckr.cards - deckr.playing);
 	uint ccardi;
-
-	// NOTE: this might be redundant
-	// if (available < 2) {
-	// 	return NOCARDS;
-	// }
 
 draw:
 	// draw the initial card
@@ -170,9 +167,6 @@ Gstat take (Player* p, uint am, bool always) {
 		}
 	}
 
-//DEBUG
-	goto takeloop;
-
 	// UPDATE (20220908): I decided to make special cards an exception to this rule
 	for (uint i = 0; i < pcardi; i++) {
 		pcard = index (deckr.deck, pcards[i], cardi);
@@ -180,7 +174,7 @@ Gstat take (Player* p, uint am, bool always) {
 			alegal++;
 			if (alegal == 3) {
 				alegal = 0;
-				//EMSGCODE (E3LEGAL);//DEBUG
+				EMSGCODE (E3LEGAL);
 			}
 		}
 	}
@@ -191,9 +185,13 @@ takecard:
 		card = take_from_stack ();
 		if ((card && top) && legal (*card, *top)) {
 			alegal++;
+			
+			// NOTE: this allows to get *up-to* three legal cards
 			if (alegal == 4) {
 				alegal = 0;
-				//EMSGCODE (E3LEGAL);//DEBUG
+				// revert `take_from_stack'
+				stacktop--;
+				EMSGCODE (E3LEGAL);
 			}
 		}
 		if (!card) {
@@ -215,8 +213,9 @@ static inline void psort (Player* p, uint ci, uint pcardi) {
 	uint* buf = p->cards;
 	uint i = ci;
 
-	for (; i < (pcardi-1); i++)
+	for (; i < (pcardi-1); i++) {
 		buf[i] = buf[i+1];
+	}
 
 	buf[i] = 0;
 }
@@ -246,14 +245,10 @@ void play (Player* p, Card* pc, uint ci) {
 
 Player* turn (uint botn) {
 	static uint i = 0;
-	if (dir == DIRCLOCKWISE) {
-		i++;
-		i %= botn;
-	}
-	else {
-		if (i == 0) i = (botn-1);
-		else i--;
-	}
+
+	i += (dir == DIRCLOCKWISE)? 1: (botn-1);
+	i %= botn;
+
 	return &playerbuf[i];
 }
 
@@ -265,9 +260,8 @@ static void gameinit (Deckr* deckr, uint botn) {
 	deckr->deck = malloc (cards * sizeof (Card));
 	deckr->cards = cards;
 	deckr->played = 0;
-	// NOTE: this fills itself up at `popplayers'-time
-	//deckr->playing = PLAYING (botn);
 
+	// arrange the deck
 	decktop = &deckr->deck[n-1][CPDECK-1];
 	deckbase = &deckr->deck[0][0];
 	popdeck (deckr);
@@ -275,7 +269,7 @@ static void gameinit (Deckr* deckr, uint botn) {
 	// shuffle the deck
 	uint t = time (NULL);
 	seed = *(uint*) &botn;
-	seed = (reseedr (t) << 4) ^ t;
+	seed = (seeded (t) << 4) ^ t;
 	shuffle (deckr, deckr->cards);
 	popplayers (deckr, botn, deckr->cards);
 
@@ -289,14 +283,22 @@ static void gameinit (Deckr* deckr, uint botn) {
 #endif
 }
 
-static Gstat update_game (Cmd* cmd) {
+typedef struct {
+	Gstat master;
+	enum {_SLAVE_ACC = 1, } slave;
+} GstatUpdate;
+
+static GstatUpdate update_game (Cmd* cmd) {
 	Card* pcard;
+	GstatUpdate ret = {0};
 
 	// accumulative cards take without asking
 	if (cmd->status == CACC) {
 		uint _acc = acc;
 		acc = 0;
-		return take (cmd->p, _acc, ALWAYS);
+		ret.slave = _SLAVE_ACC;
+		ret.master = take (cmd->p, _acc, ALWAYS);
+		return ret;
 	}
 
 	switch (cmd->ac.cmd) {
@@ -307,12 +309,12 @@ static Gstat update_game (Cmd* cmd) {
 
 		// ensure suit
 		if (pcard->suit == SPECIAL && csuit == NOSUIT) {
-			EMSGCODE (EMISSINGSUIT);
+			EMSGCODESLAVE (EMISSINGSUIT, ret);
 		}
 
 		// ensure legal
 		if (! legal (*pcard, *top)) {
-			EMSGCODE (EILLEGAL);
+			EMSGCODESLAVE (EILLEGAL, ret);
 		}
 
 		play (cmd->p, pcard, (cmd->ac.target-1));
@@ -330,17 +332,19 @@ static Gstat update_game (Cmd* cmd) {
 		break;
 
 	case TAKE:
-		return take (cmd->p, cmd->ac.am, CONDITIONAL);
+		ret.master = take (cmd->p, cmd->ac.am, CONDITIONAL);
+		return ret;
 	}
 
-	return cmd->p->cardi? GCONT: GEND;
+	ret.master = cmd->p->cardi? GCONT: GEND;
+	return ret;
 }
 
 static int gameloop (uint botn) {
 	gameinit (&deckr, botn);
 
 	Cmd cmd;
-	Gstat stat;
+	GstatUpdate stat;
 
 	cmd.cmdstr = cmdbuff;
 	cmd.p = player;
@@ -384,11 +388,13 @@ read:
 			case CHELP: draw_help_msg (&cmd); goto read;
 			}
 		}
-		else bot_play (&cmd, 0 /*(cmd.p - player) - 1*/);//DEBUG
+		else {
+			bot_play (&cmd, (cmd.p - player));
+		}
 
 		stat = update_game (&cmd);
 
-		switch (stat) {
+		switch (stat.master) {
 		case GMSG_ERR:
 			msgsend_err (MSGERRCODE);
 			goto read;
@@ -403,13 +409,20 @@ read:
 			goto done;
 		}
 
-		//cmd.p = turn (botn);//DEBUG
 		update_display (&cmd);
+
+		// only play next turn if the previous turn was played or an accumulative
+		// was put in action
+		if (cmd.ac.cmd == PLAY || stat.slave == _SLAVE_ACC) {
+			cmd.p = turn (botn);
+		}
 	}
 
 done:
-	//free (deckr.deck);
-	//free (display.buf);
+	free (display.buf);
+	free (deckr.deck);
+	free (playerbuf);
+	free (legalbuf);
 
 	return 0;
 }

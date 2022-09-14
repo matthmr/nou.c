@@ -239,15 +239,23 @@ static char* draw_players_deck (char* buf, Player* p) {
 
 static char* draw_game_deck (char* buf, uint dcardn, uint pcardn, Card* pcard) {
 	char* _buf = buf;
+	Card _pcard = *pcard;
 
 	_buf = _str_embed_draw (_buf, ERASE2ENDLINE "D: ");
 	_buf = _itoa_draw (_buf, dcardn);
 	_buf = _str_embed_draw (_buf, "\n" ERASE2ENDLINE "P: ");
-	_buf = _itoa_draw (_buf, pcardn);
+
 
 	// avoid drawing if there are no cards played
 	if (pcardn) {
-		_buf = _str_embed_draw (_buf, " ");
+		//_buf = _str_embed_draw (_buf, " ");
+
+		// draw the chosen suit after inside the special card
+		if (pcard->suit == SPECIAL) {
+			_pcard.suit = csuit;
+			pcard = &_pcard;
+		}
+
 		_buf = _draw_card_cell (_buf, pcard, 0);
 	}
 
@@ -387,7 +395,9 @@ void update_display (Cmd* cmd) {
 	uint pid = pplayer - player;
 
 	// account for the newline: C-d handle is done at `cmdread'-time
-	write (1, MSG (MOVUP0 ("1")));
+	if (cmd->p->tag == PLAYER) {
+		write (1, MSG (MOVUP0 ("1")));
+	}
 
 	// increase the buffer size if the player says so
 	if (pplayer->cardn != _cardn) {

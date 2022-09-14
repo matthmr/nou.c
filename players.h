@@ -36,7 +36,7 @@ enum cmd {
 typedef struct {
 	enum cmd cmd;
 	uint am;
-	uint target; // Card* target;
+	uint target;
 	//Suit csuit;
 } CmdAction;
 
@@ -48,22 +48,19 @@ typedef struct {
 } Cmd;
 
 typedef struct {
- 	Suit strong_suit, weak_suit;
- 	Number strong_number, weak_number;
- 
- 	Suit* strong_oth_suit, * weak_oth_suit;
- 	Number* strong_oth_number, * weak_oth_number;
- 
- 	float risk_bias;
-} Bot;
+	Suit suit;
+	Number number;
+	uint i;
+} Legal;
 
 extern char* cmdbuf;
 
 extern Player* playerbuf, * player;
-extern Bot* botbuf;
 extern uint playern;
 
+extern Legal** legalbuf;
+
 void bot_play (Cmd*, uint);
-void init_bot (float, uint);
+void bot_init (uint);
 
 #endif
