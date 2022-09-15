@@ -154,16 +154,15 @@ void popdeck (Deckr* deckr) {
 	uint i = 0, c = 0;
 
 iter:
-	for (Suit suit = DIAMONDS; suit <= SPADES; suit++)
+	for (uint suitn = 1; suitn <= 4; suitn++)
 		for (Number number = _A; number <= _J; number++) {
-			card.suit = suit;
+			card.suit = BIT (suitn);
 			card.number = number;
 			card.owner = NULL;
 			deck[i][c] = card;
 			c++;
 		}
 
-	//c++;
 	card.suit = SPECIAL;
 	card.number = _B;
 	card.owner = NULL;

@@ -319,6 +319,7 @@ static GstatUpdate update_game (Cmd* cmd) {
 
 		play (cmd->p, pcard, (cmd->ac.target-1));
 
+		// TODO: apply the "if you can't follow up, don't play it" rule
 		if (block) {
 			block = false;
 			(void) turn (playern);
@@ -326,6 +327,7 @@ static GstatUpdate update_game (Cmd* cmd) {
 		else if (reverse) {
 			reverse = false;
 			dir = ~dir;
+			cmd->p = turn (playern);
 			reverse_draw_players ();
 		}
 
@@ -345,6 +347,7 @@ static int gameloop (uint botn) {
 
 	Cmd cmd;
 	GstatUpdate stat;
+	Player* prevplayer = NULL;
 
 	cmd.cmdstr = cmdbuff;
 	cmd.p = player;
@@ -392,6 +395,7 @@ read:
 			bot_play (&cmd, (cmd.p - player));
 		}
 
+		prevplayer = cmd.p;
 		stat = update_game (&cmd);
 
 		switch (stat.master) {
@@ -409,13 +413,11 @@ read:
 			goto done;
 		}
 
-		update_display (&cmd);
-
-		// only play next turn if the previous turn was played or an accumulative
-		// was put in action
 		if (cmd.ac.cmd == PLAY || stat.slave == _SLAVE_ACC) {
 			cmd.p = turn (botn);
 		}
+
+		update_display (&cmd, prevplayer);
 	}
 
 done:

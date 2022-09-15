@@ -183,10 +183,14 @@ static void movbackbuf_from_lines (uint lines) {
 }
 
 // -- draw stack top -- //
-static char* draw_command_prompt (char* buf) {
+static char* draw_command_prompt (char* buf, bool is_player) {
 	char* _buf = buf;
 
-	_buf = _str_embed_draw (_buf, ERASE2ENDLINE "(P0) \n" ERASE2ENDLINE "\n");
+	_buf = _str_embed_draw (_buf,
+													is_player?
+													ERASE2ENDLINE "(P0) \n" ERASE2ENDLINE "\n":
+													"\r" ERASE2ENDLINE "(P0) \n" ERASE2ENDLINE "\n");
+	
 	_buf = _str_embed_draw (_buf, "\n");
 
 	return _buf;
@@ -316,10 +320,10 @@ static void send_cursor_to_prompt (void) {
 }
 // -- draw stack bottom -- //
 
-static void draw_stack (uint pid) {
+static void draw_stack (uint pid, bool is_player) {
 	char* _buf = display.buf;
 
-	_buf = draw_command_prompt (_buf);
+	_buf = draw_command_prompt (_buf, is_player);
 	_buf = draw_players_deck (_buf, player);
 	_buf = draw_game_deck (_buf,
 												 (deckr.cards - (deckr.playing + deckr.played)),
@@ -368,7 +372,7 @@ void init_display (uint botn) {
 
 	movbackbuf_from_lines (lines);
 
-	draw_stack (0);
+	draw_stack (0, true);
 }
 
 void error_display (const char* msg) {
@@ -388,14 +392,14 @@ void error_display (const char* msg) {
 
 void info_display (const char* msg, uint infon) { }
 
-void update_display (Cmd* cmd) {
+void update_display (Cmd* cmd, Player* p) {
 	static uint _cardn = CARDN;
 
 	Player* pplayer = cmd->p;
 	uint pid = pplayer - player;
 
 	// account for the newline: C-d handle is done at `cmdread'-time
-	if (cmd->p->tag == PLAYER) {
+	if (p->tag == PLAYER) {
 		write (1, MSG (MOVUP0 ("1")));
 	}
 
@@ -406,7 +410,7 @@ void update_display (Cmd* cmd) {
 		allocbuf (&display);
 	}
 
-	draw_stack (pid);
+	draw_stack (pid, p->tag == PLAYER);
 }
 
 // TODO: fix fix_display
@@ -452,7 +456,7 @@ static void clear_help (Cmd* cmd) {
 
 	write (1, buf, (_buf - buf));
 
-	draw_stack (pid);
+	draw_stack (pid, true);
 }
 
 int draw_help_msg (Cmd* cmd) {

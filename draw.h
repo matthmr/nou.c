@@ -52,7 +52,7 @@ void error_display (const char*);
 void info_display (const char*, uint);
 void init_display (uint);
 void fix_display (void);
-void update_display (Cmd*);
+void update_display (Cmd*, Player*);
 
 int draw_help_msg (Cmd*);
 

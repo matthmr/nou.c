@@ -3,6 +3,8 @@
 
 #  include "utils.h"
 
+#  define PERC(x) (seeded (100) < (x))
+
 typedef enum { PLAYER, BOT, } Ptag;
 
 // UPDATE (20220908): `deck.h' was causing some problems at include-time,
@@ -48,9 +50,9 @@ typedef struct {
 } Cmd;
 
 typedef struct {
+	uint ci;
 	Suit suit;
 	Number number;
-	uint i;
 } Legal;
 
 extern char* cmdbuf;

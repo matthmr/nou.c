@@ -13,13 +13,13 @@ typedef enum direction {
 #  define DIRECTION DIRCLOCKWISE
 
 typedef enum suit {
-	DIAMONDS = 0,
-	CLUBS,
-	HEARTS,
-	SPADES,
-	SPECIAL,
+	DIAMONDS = BIT (1),
+	CLUBS = BIT (2),
+	HEARTS = BIT (3),
+	SPADES = BIT (4),
+	SPECIAL = BIT (5),
 
-	NOSUIT = -1,
+	NOSUIT = 0,
 } Suit;
 
 typedef enum number {
