@@ -5,7 +5,7 @@
 #  include "deck.h"
 #  include "players.h"
 
-#  define VERSION "v1.0.0"
+#  define VERSION "v1.0.1"
 #  define PROG "nou"
 
 #  define EMSGCODE(x)														\

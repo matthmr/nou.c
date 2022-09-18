@@ -13,30 +13,25 @@ typedef enum direction {
 #  define DIRECTION DIRCLOCKWISE
 
 typedef enum suit {
-	DIAMONDS = BIT (1),
-	CLUBS = BIT (2),
-	HEARTS = BIT (3),
-	SPADES = BIT (4),
-	SPECIAL = BIT (5),
+	DIAMONDS = BIT (1), // 1
+	CLUBS = BIT (2),    // 2
+	HEARTS = BIT (3),   // 4
+	SPADES = BIT (4),   // 8
+	SPECIAL = BIT (5),  // 16
 
 	NOSUIT = 0,
 } Suit;
 
 typedef enum number {
 	_A = 0, _2, _3, _4, _5, _6, _7, _8, _9, _10,
-	_K, // block
-	_Q, // reverse
-	_J, // +2
-	_B, // +4
-	_C, // joker
+	_K, // block    (10)
+	_Q, // reverse  (11)
+	_J, // +2			  (12)
+	_B, // +4			  (13)
+	_C, // joker	  (14)
 
 	NONUMBER = -1,
 } Number;
-
-//typedef struct card_owner {
-//	Player* p;
-//	uint pos;
-//} CardOwner;
 
 #  include "players.h"
 
@@ -44,8 +39,6 @@ typedef struct card {
 	Suit suit;
 	Number number;
 	Player* owner;
-	//CardOwner* owner;
-	//short played;
 } Card;
 
 typedef Card Deck[CPDECK];

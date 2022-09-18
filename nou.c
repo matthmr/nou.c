@@ -15,23 +15,31 @@ char* cmdbuff = NULL;
 static bool block = false, reverse = false;
 
 bool legal (Card playing, Card played) {
-	Suit suit = played.suit, psuit = playing.suit;
-	Number num = played.number, pnum = playing.number;
+	Suit tsuit = played.suit, psuit = playing.suit;
+	Number tnum = played.number, pnum = playing.number;
 
-	if (num == _C) {
+	if (tnum == _C) {
+ccsuit:
 		return (psuit == csuit || psuit == SPECIAL);
 	}
-	else if (num == _B) {
+	else if (tnum == _B) {
+		if (! acc) {
+			goto ccsuit;
+		}
 		return ((psuit == csuit && (pnum == _Q || pnum == _J)) ||
-			(psuit == SPECIAL && pnum == _B));
+						(psuit == SPECIAL && pnum == _B));
 	}
-	else if (num == _J) {
-		return ((psuit == suit && pnum == _Q) ||
-			(pnum == _J) ||
-			(psuit == SPECIAL && pnum == _B));
+	else if (tnum == _J) {
+		if (! acc) {
+			goto basic;
+		}
+		return ((psuit == tsuit && pnum == _Q) ||
+						(pnum == _J) ||
+						(psuit == SPECIAL && pnum == _B));
 	}
 
-	return (pnum == num || psuit == suit || psuit == SPECIAL);
+basic:
+	return (pnum == tnum || psuit == tsuit || psuit == SPECIAL);
 }
 
 static inline Card* take_from_stack (void) {
@@ -49,9 +57,6 @@ static inline Card* take_from_stack (void) {
 	return stacktop;
 }
 
-// NOTE: the `::cardi' field is human-readable, so its index
-// is taken raw. For example, a value of 7 means the 8th element
-// is empty
 static inline void player_append (Player* p, Card* card) {
 	// TODO: smart memory cleaning; it's not needed now because
 	// even the most leaky allocs are only about ~4KB in size
@@ -98,7 +103,6 @@ static Gstat reshuffle (uint* cardi, Card* __top) {
 
 	// this implements the "top card must stay on top after reshuffle" rule
 	if (deckr.played < 2) {
-		//printf ("die here = %d\ndeckr.played = %d\n",	__LINE__,	deckr.played);
 		return GDRAW;
 	}
 
@@ -143,33 +147,29 @@ Gstat take (Player* p, uint am, bool always) {
 	uint pcardi = p->cardi;
 	uint* pcards = p->cards;
 
+	Deck* deck = deckr.deck;
+	uint cards = deckr.cards;
+
 	Card pcard;
 	Card* card;
 
 	uint cardi = deckr.cards - (deckr.playing + deckr.played);
 
-	// skip `E3LEGAL' blocking
-	if (always) {
-		if (! cardi) {
-			Gstat reshufflestat = reshuffle (&cardi, top);
-			if (reshufflestat != GOK) {
-				return reshufflestat;
-			}
-		}
-		goto takeloop;
-	}
-
 	// trigger reshuffle
-	else if (! cardi) {
+	if (! cardi) {
 		Gstat reshufflestat = reshuffle (&cardi, top);
 		if (reshufflestat != GOK) {
 			return reshufflestat;
 		}
 	}
 
+	if (always) {
+		goto takeloop;
+	}
+
 	// UPDATE (20220908): I decided to make special cards an exception to this rule
 	for (uint i = 0; i < pcardi; i++) {
-		pcard = index (deckr.deck, pcards[i], cardi);
+		pcard = index (deck, pcards[i], cards);
 		if (legal (pcard, *top) && (pcard.suit != SPECIAL)) {
 			alegal++;
 			if (alegal == 3) {
@@ -183,7 +183,7 @@ takeloop:
 	for (uint _ = 0; _ < am; _++) {
 takecard:
 		card = take_from_stack ();
-		if ((card && top) && legal (*card, *top)) {
+		if (!always && (card && top) && legal (*card, *top)) {
 			alegal++;
 			
 			// NOTE: this allows to get *up-to* three legal cards
@@ -327,7 +327,7 @@ static GstatUpdate update_game (Cmd* cmd) {
 		else if (reverse) {
 			reverse = false;
 			dir = ~dir;
-			cmd->p = turn (playern);
+			//cmd->p = turn (playern);
 			reverse_draw_players ();
 		}
 
@@ -347,7 +347,7 @@ static int gameloop (uint botn) {
 
 	Cmd cmd;
 	GstatUpdate stat;
-	Player* prevplayer = NULL;
+	Player* acplayer = NULL;
 
 	cmd.cmdstr = cmdbuff;
 	cmd.p = player;
@@ -362,10 +362,11 @@ getlegalplayer:
 			uint* pcards = playerbuf[i].cards;
 			Card pcard = index (deckr.deck,
 													pcards[j],
-													deckr.cards - (deckr.playing + deckr.played));
+													deckr.cards);
 			// we don't want the first play wasting a special, it's better to skip the turn
-			if (legal (pcard, *top) && pcard.suit != SPECIAL)
+			if (legal (pcard, *top) && pcard.suit != SPECIAL) {
 				goto loop;
+			}
 		}
 		(void) turn (botn);
 	}
@@ -377,8 +378,6 @@ getlegalplayer:
 		drawfirstcard ();
 		goto getlegalplayer;
 	}
-
-	goto done;
 
 loop:
 	for (;;) {
@@ -395,7 +394,7 @@ read:
 			bot_play (&cmd, (cmd.p - player));
 		}
 
-		prevplayer = cmd.p;
+		acplayer = cmd.p;
 		stat = update_game (&cmd);
 
 		switch (stat.master) {
@@ -417,7 +416,7 @@ read:
 			cmd.p = turn (botn);
 		}
 
-		update_display (&cmd, prevplayer);
+		update_display (&cmd, acplayer, stat.slave);
 	}
 
 done:

@@ -217,6 +217,9 @@ static CmdStatNum cmdparse_number (char* buf, enum err* ecode) {
 		if (NUMBER (c)) {
 			pos *= 10, d++;
 		}
+		else {
+			break;
+		}
 	}
 
 	if (d > MAXCARDSLEN) {
@@ -423,7 +426,9 @@ static CmdStat cmdparse (Cmd* cmd, enum err* ecode) {
 
 	// prefixing <>: play by card attribute
 	ITER (c, cmdbuf, i, CMDBUFF) {
-		if (_DONE (c)) break;
+		if (_DONE (c)) {
+			break;
+		}
 
 		if (_SUIT (c)) {
 			// `1' followed by suit: `1' is not a card number

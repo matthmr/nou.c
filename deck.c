@@ -239,6 +239,10 @@ seeder_seed:
 }
 
 uint seeded (uint n) {
+	if (!n ) {
+		return n;
+	}
+
 	uint ret = 0;
 	seed = seeder (seed+reseed+1);
 

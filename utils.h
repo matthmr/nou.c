@@ -16,7 +16,7 @@
 #  define BOTSSTR "1"
 #  define SOFTLIM 1000
 #  define CMDBUFF 50
-#  define PLAY_INTERVAL 250*1000 // 250 ms
+#  define PLAY_INTERVAL 500*1000 // 500 ms
 
 #  define ICASE 0x20
 

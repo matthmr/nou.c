@@ -5,7 +5,7 @@ SET_FLAGS=(
 )
 SET_FLAG_PREFIX='M4FLAG_conf_'
 
-INCLUDE_FLAGS=('HEADER')
+INCLUDE_FLAGS=('HEADER' 'DEBUG')
 INCLUDE_FLAG_PREFIX='M4FLAG_include_'
 
 CALLEES=(
@@ -19,7 +19,7 @@ BUILDS_CALL=(
 	"SED=\"\$SED\"                         scripts/${CALLEES[0]}.sh"
 	"M4=\"\$M4\" M4FLAGS=\"\$M4FLAGS\"     scripts/${CALLEES[1]}.sh"
 	"CC=\"\$CC\" SED=\"\$SED\" \
-         M4=\"\$M4\" M4FLAGS=\"\$M4FLAGS\"     scripts/${CALLEES[2]}.sh"
+   M4=\"\$M4\" M4FLAGS=\"\$M4FLAGS\"     scripts/${CALLEES[2]}.sh"
 #	"M4=\"\$M4\" M4FLAGS=\"\$M4FLAGS\"     scripts/${CALLEES[3]}.sh"
 )
 

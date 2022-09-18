@@ -8,6 +8,8 @@ makeflagdef(`CC')
 makeflagdef(`CFLAGS')
 makeflagchange(`CFLAGSADD')
 makeflagdef(`MD2ROFF')
+dnl
+incmakeflagchange(`DEBUG')
 incmakeflagchange(`HEADER')
 dnl
 undefine(`makeflag')dnl

@@ -5,6 +5,8 @@ default(`CC', `cc')dnl
 default(`CFLAGS', `')dnl
 default(`CFLAGSADD', `')dnl
 default(`MD2ROFF', `marked-man')dnl
+dnl
+incdefault(`DEBUG', `0')dnl
 incdefault(`HEADER', `1')dnl
 dnl
 undefine(`default')dnl

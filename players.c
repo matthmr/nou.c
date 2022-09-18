@@ -1,6 +1,10 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#if DEBUG == 1
+#include <stdio.h>
+#endif
+
 #include "players.h"
 #include "nou.h"
 #include "cmd.h"
@@ -11,14 +15,24 @@ uint playern = 0;
 
 Legal** legalbuf = NULL;
 
-// biases
-static Card* rndsuit_bias (Legal**, uint, Number, Suit, Suit);
-static uint bsuit_sort_bias (Legal**, uint, Suit);
-static uint num_sort_bias (Legal**, uint, Number);
-static Suit suit_bias (Card*, Suit);
-static Card* on_counteract_bias (Legal*, uint, Suit);
-static Card* on_disadvantage_bias (Legal*, uint, Suit);
-static Card* bias (Legal*, uint, Suit);
+// NOTE: this strategy only applies as either a conjunction to
+// `bsuit' (most populated suit) or as a random fallback
+struct ldup {
+	uint nam;
+	Suit sam;
+
+	Number num;
+};
+
+static uint ldup_sort_legal (Legal*, uint, struct ldup*);
+static uint bsuit_sort_legal (Legal*, uint, Suit);
+static uint num_sort_legal (Legal*, uint, Number);
+static Suit csuit_bias (Card*, Suit);
+static uint bsuit_bias (Legal*, uint, Suit, Number, Suit);
+
+static uint on_counteract_bias (Legal*, uint, Suit);
+static uint on_disadvantage_bias (Legal*, uint, Suit);
+static uint bias (Legal*, uint, Suit);
 
 // -- bot stack top -- //
 static inline uint findcard (Legal* legal, uint len, Number number, Suit suit) {
@@ -51,6 +65,55 @@ static inline Player* turn_after (uint i, uint step) {
 	return &playerbuf[i];
 }
 
+static uint ldup_sort_legal (Legal* legal, uint len, struct ldup* ldupbuf) {
+	uint lessof = -1u;
+	uint i = 0, ret = 0;
+
+	// populate `ldupbuf'
+	for (i = 0; i < len; i++) {
+		ldupbuf[legal[i].number].nam++;
+		ldupbuf[legal[i].number].sam |= legal[i].suit;
+	}
+
+	// sort `ldupbuf'
+	for (i = 0; i < 13; i++) {
+		uint nam = ldupbuf[i].nam;
+		if (nam) {
+			if (nam < lessof) {
+				ret = 0;
+				struct ldup target = ldupbuf[i];
+				target.num = (Number) i;
+
+				ldupbuf[i] = ldupbuf[ret];
+				ldupbuf[ret] = target;
+				lessof = nam;
+			}
+			else if (ldupbuf[i].nam == lessof) {
+				ret++;
+				struct ldup target = ldupbuf[i];
+				target.num = (Number) i;
+
+				ldupbuf[i] = ldupbuf[ret];
+				ldupbuf[ret] = target;
+			}
+		}
+	}
+
+	for (i = 13; i < 15; i++) {
+		// BIAS(10): hijack `_sort_legal', send a special card instead
+		if (PERC (10) && ldupbuf[i].nam) {
+			ret = 0;
+			struct ldup target = ldupbuf[i];
+			target.num = (Number) i;
+
+			ldupbuf[i] = ldupbuf[ret];
+			ldupbuf[ret] = target;
+		}
+	}
+
+	return ret;
+}
+
 /*
  * The default strategy is to play a card in the most populous suit
  * that has the least ammount of duplicates in other suits, but it
@@ -60,51 +123,44 @@ static inline Player* turn_after (uint i, uint step) {
  * Base strategies change with different implementations of these
  * family of functions. They all end with `_bias'.
  */
-static Card* bias (Legal* legal, uint len, Suit bsuit) {
-	Card* card = NULL;
-	
-	struct ldup {
-		uint nam;
-		Suit sam;
-	};
+static uint bias (Legal* legal, uint len, Suit bsuit) {
+	uint ret = 0;
+	Number bnum = NONUMBER;
 
-	struct ldup ldupbuf[13] = {{0}};
+	struct ldup ldupbuf[15] = {{0}};
 	struct ldup ldup = {0};
+	uint lduplen = 0;
 
 	uint rnd;
 
-	// BIAS(10): it ignores everything and plays a random card
+	// BIAS(10): it ignores everything and plays a random legal card
 	if (PERC (10)) {
 		rnd = seeded (len);
-		card = &index (deckr.deck, legal[rnd].ci, deckr.cards);
-		csuit = suit_bias (card, bsuit);
+		ret = legal[rnd].ci;
 		goto done;
 	}
 
 	// populate `ldupbuf'
-	for (uint i = 0; i < len; i++) {
-		ldupbuf[legal[i].number].nam++;
-		ldupbuf[legal[i].number].sam |= legal[i].suit;
+	lduplen = ldup_sort_legal (legal, len, ldupbuf);
+
+	// deal with duplicates
+	if (lduplen) {
+		lduplen++;
+		ldup = ldupbuf[seeded (lduplen)];
+	}
+	else {
+		ldup = ldupbuf[lduplen];
 	}
 
-	uint _nam = -1u;
+	bnum = ldup.num;
 
-	// find `ldup'
-	for (uint i = 0; i < 13; i++) {
-		if (ldupbuf[i].nam && ldupbuf[i].nam < _nam) {
-			_nam = ldupbuf[i].nam;
-			ldup.nam = (Number) i;
-			ldup.sam = ldupbuf[i].sam;
-		}
-	}
-
-	// BIAS(15): it ignores `bsuit' in favor of the suit of `ldup'
-	if (PERC (15)) bias_ldup: {
-		uint ldupsuit[4];
+	// BIAS(10): it ignores `bsuit' in favor of the suit of `bnum'
+	if (PERC (10)) bias_bnum: {
+		uint ldupsuit[5] = {0};
 		uint ldupsuitlen = 0;
 
 		// populate `ldupsuit'
-		for (uint i = 0; i < 4; i++) {
+		for (uint i = 0; i < 5; i++) {
 			if (ldup.sam & BIT (i+1)) {
 				ldupsuit[ldupsuitlen] = BIT (i+1);
 				ldupsuitlen++;
@@ -112,65 +168,63 @@ static Card* bias (Legal* legal, uint len, Suit bsuit) {
 		}
 
 		rnd = seeded (ldupsuitlen);
-		card = &index (deckr.deck,
-									 findcard (legal, len, ldup.nam, ldupsuit[rnd]),
-									 deckr.cards);
-		csuit = suit_bias (card, bsuit);
+		ret = findcard (legal, len, bnum, ldupsuit[rnd]);
+
 		goto done;
 	}
 
-	// BIAS(80): it applies `bsuit' in conjunction with `ldup'
+	// BIAS(80): it applies `bsuit' in conjunction with `bnum'
 	if (PERC (80)) {
 		if (ldup.sam & bsuit) {
-			card = &index (deckr.deck,
-										 findcard (legal, len, ldup.nam, ldup.sam & bsuit),
-										 deckr.cards);
+			ret = findcard (legal, len, bnum, ldup.sam & bsuit);
+
 			goto done;
 		}
+
+		// BIAS(80): it opts for `bsuit' only
+		else if (PERC (80)) {
+			goto bias_bsuit;
+		}
 		else {
-			goto bias_ldup; 
+			goto bias_bnum;
 		}
 	}
 
 	// BIAS(20): it only applies `bsuit'
-	else {
-		uint bsuitlen = bsuit_sort_bias (&legal, len, bsuit);
+	else bias_bsuit: {
+		uint bsuitlen = bsuit_sort_legal (legal, len, bsuit);
 		rnd = seeded (bsuitlen);
-		card = &index (deckr.deck, legal[rnd].ci, deckr.cards);
+		ret = legal[rnd].ci;
 		goto done;
 	}
 
 done:
-	return card;
+	return ret;
 }
 
-static Card* rndsuit_bias (Legal** legal,
-													 uint len,
-													 Number number,
-													 Suit bsuit,
-													 Suit base) {
-	Card* card = NULL;
-	Legal* _legal = *legal;
-	uint rnd = 0;
+static uint bsuit_bias (Legal* legal, uint len, Suit bsuit,
+												Number number, Suit base) {
+	uint ret = 0;
 
+	// BIAS(10): it plays a random card matching the number
 	if (PERC (10)) perc: {
-		uint qn = num_sort_bias (legal, len, number);
-		rnd = seeded (qn);
-		card = &index (deckr.deck, _legal[rnd].ci, deckr.cards);
+		uint li = num_sort_legal (legal, len, number);
+		uint rnd = seeded (li);
+		ret = legal[rnd].ci;
 	}
+
+	// BIAS(90): it plays a card of `bsuit' suit matching the number
 	else if (base & bsuit) {
-			card = &index (deckr.deck,
-										 findcard (_legal, len, number, bsuit),
-										 deckr.cards);
+		ret = findcard (legal, len, number, bsuit);
 	}
 	else {
 		goto perc;
 	}
 
-	return card;
+	return ret;
 }
 
-static Suit suit_bias (Card* card, Suit bsuit) {
+static Suit csuit_bias (Card* card, Suit bsuit) {
 	Suit ret;
 	uint rnd = 0;
 
@@ -178,12 +232,13 @@ static Suit suit_bias (Card* card, Suit bsuit) {
 		// BIAS(10): it ignores `bsuit' and chooses a random suit
 		if (PERC (10)) {
 			rnd = seeded (4);
-			ret = (Suit) BIT (rnd+1);
+			ret = (Suit) (BIT (rnd+1));
 		}
 		else {
 			ret = bsuit;
 		}
 	}
+
 	else {
 		ret = csuit;
 	}
@@ -191,13 +246,14 @@ static Suit suit_bias (Card* card, Suit bsuit) {
 	return ret;
 }
 
-static uint bsuit_sort_bias (Legal** legal, uint len, Suit bsuit) {
-	uint i = 0, j = 0;
-	Legal* _legal = *legal;
+static uint bsuit_sort_legal (Legal* legal, uint len, Suit bsuit) {
+	uint j = 0;
 
-	for (; i < len; i++) {
-		if (_legal[i].suit == bsuit) {
-			_legal[j] = _legal[i];
+	for (uint i = 0; i < len; i++) {
+		if (legal[i].suit == bsuit) {
+			Legal tmp = legal[j];
+			legal[j] = legal[i];
+			legal[i] = tmp;
 			j++;
 		}
 	}
@@ -205,13 +261,14 @@ static uint bsuit_sort_bias (Legal** legal, uint len, Suit bsuit) {
 	return j;
 }
 
-static uint num_sort_bias (Legal** legal, uint len, Number number) {
-	uint i = 0, j = 0;
-	Legal* _legal = *legal;
+static uint num_sort_legal (Legal* legal, uint len, Number number) {
+	uint j = 0;
 
-	for (; i < len; i++) {
-		if (_legal[i].number == number) {
-			_legal[j] = _legal[i];
+	for (uint i = 0; i < len; i++) {
+		if (legal[i].number == number) {
+			Legal tmp = legal[j];
+			legal[j] = legal[i];
+			legal[i] = tmp;
 			j++;
 		}
 	}
@@ -219,9 +276,7 @@ static uint num_sort_bias (Legal** legal, uint len, Number number) {
 	return j;
 }
 
-static Card* on_counteract_bias (Legal* legal, uint len, Suit bsuit) {
-	Card* card = NULL;
-
+static uint on_counteract_bias (Legal* legal, uint len, Suit bsuit) {
 	struct ca_bias {
 		Suit b, j, q;
 	};
@@ -231,6 +286,8 @@ static Card* on_counteract_bias (Legal* legal, uint len, Suit bsuit) {
 		.j = NOSUIT,
 		.q = NOSUIT,
 	};
+
+	uint ret = 0;
 
 	// populate `ca_bias'
 	for (uint i = 0; i < len; i++) {
@@ -260,23 +317,22 @@ static Card* on_counteract_bias (Legal* legal, uint len, Suit bsuit) {
 
 	// BIAS: it prefers _Q over _J over _B
 	if (ca_bias.q) {
-		card = rndsuit_bias (&legal, len, _Q, bsuit, ca_bias.q);
+		ret = bsuit_bias (legal, len, bsuit,
+											_Q, ca_bias.q);
 	}
 	else if (ca_bias.j) bias_j: {
-		card = rndsuit_bias (&legal, len, _J, bsuit, ca_bias.j);
+		ret = bsuit_bias (legal, len, bsuit,
+											_J, ca_bias.j);
 	}
 	else if (ca_bias.b) bias_b: {
-		card = &index (deckr.deck,
-									 findcard (legal, len, _B, SPECIAL),
-									 deckr.cards);
-		csuit = suit_bias (card, bsuit);
+		ret = findcard (legal, len, _B, SPECIAL);
 	}
 
-	return card;
+	return ret;
 }
 
-static Card* on_disadvantage_bias (Legal* legal, uint len, Suit bsuit) {
-	Card* card = NULL;
+static uint on_disadvantage_bias (Legal* legal, uint len, Suit bsuit) {
+	uint ret = 0;
 
 	struct da_bias {
 		Suit c, b, j, q, k;
@@ -329,51 +385,50 @@ static Card* on_disadvantage_bias (Legal* legal, uint len, Suit bsuit) {
 	}
 
 	if (da_bias.k) {
-		card = rndsuit_bias (&legal, len, _K, bsuit, da_bias.k);
+		ret = bsuit_bias (legal, len, bsuit,
+											_K, da_bias.k);
 	}
 	else if (da_bias.q) bias_q: {
-		card = rndsuit_bias (&legal, len, _Q, bsuit, da_bias.q);
+		ret = bsuit_bias (legal, len, bsuit,
+											_Q, da_bias.q);
 	}
 	else if (da_bias.j) bias_j: {
-		card = rndsuit_bias (&legal, len, _J, bsuit, da_bias.j);
+			ret = bsuit_bias (legal, len, bsuit,
+												_J, da_bias.j);
 	}
 
 	else if (da_bias.c) bias_c: {
-		card = &index (deckr.deck,
-									 findcard (legal, len, _B, SPECIAL),
-									 deckr.cards);
-		csuit = suit_bias (card, bsuit);
+		ret = findcard (legal, len, _C, SPECIAL);
 	}
 	else if (da_bias.b) bias_b: {
-		card = &index (deckr.deck,
-									 findcard (legal, len, _B, SPECIAL),
-									 deckr.cards);
-		csuit = suit_bias (card, bsuit);
+		ret = findcard (legal, len, _B, SPECIAL);
 	}
 	else {
-		return bias (legal, len, bsuit);
+		ret = bias (legal, len, bsuit);
 	}
 
-	return card;
+	return ret;
 }
 
 static Suit bestsuit (Legal* legal, uint len) {
 	Suit ret = NOSUIT;
 	Suit suit;
 
-	uint sam[5] = {0};
+	Suit sam[5] = {0};
 	Suit ssam[5] = {0};
 	uint moreof = 0, j = -1u;
 
 	// populate `cam'
 	for (uint i = 0; i < len; i++) {
 		suit = legal[i].suit;
-		sam[(suit>>1) - ((suit & 8)>>3)]++;
+		// dirty hack to map suits to indices
+		sam[(suit>>(1+(suit & 16))) - ((suit & 8)>>3)]++;
 	}
 
 	// get the most populous suit
 	for (uint i = 0; i < 5; i++) {
 		if (sam[i] > moreof) {
+			ssam[0] = sam[i];
 			moreof = sam[i];
 			ret = BIT (i+1);
 			j = -1u;
@@ -394,88 +449,141 @@ static Suit bestsuit (Legal* legal, uint len) {
 	return ret;
 }
 
-static Card* bot_choose_card (Player* bot, Legal* legal, uint len) {
+static uint bot_choose_card (Player* bot, Legal* legal, uint len) {
 	Card* card = NULL;
+	uint i = 0;
+
 	Player* np = turn_after ((bot - player), 1);
 
 	// BIAS: it only knows about its own cards
 	Suit bsuit = bestsuit (legal, len);
 
-	// BIAS: it always try to counteract
-	if (acc) {
-		card = on_counteract_bias (legal, len, bsuit);
-		goto done;
+	// BIAS: it handles having only one legal card differently
+	if (len == 1) {
+		i = legal[0].ci;
+		card = &index (deckr.deck, bot->cards[i], deckr.cards);
+		Number cnum = card->number;
+
+		if (card->suit == SPECIAL && PERC (90)) {
+			// BIAS(10): it plays a special card if it is the only legal card
+			if (PERC (90)) {
+				return -1u;
+			}
+			else {
+				goto done;
+			}
+		}
+
+		// BIAS(40): it plays an action card if it is the only legal card
+		else if (cnum == _K || cnum == _Q || cnum == _J) {
+			if (PERC (60)) {
+				return -1u;
+			}
+			else {
+				goto done;
+			}
+		}
 	}
 
-	if (np->cardi < bot->cardi) {
+	// BIAS: it always try to counteract
+	if (acc) {
+		i = on_counteract_bias (legal, len, bsuit);
+	}
+
+	else if (np->cardi < bot->cardi) {
 		// BIAS(80): it prefers specials on numerial disadvantage
 		if (PERC (80)) {
-			card = on_disadvantage_bias (legal, len, bsuit);
+			i = on_disadvantage_bias (legal, len, bsuit);
 		}
 		else {
 			goto default_bias;
 		}
-		goto done;
 	}
 	
 	// BIAS: it applies some internal bias to choose a strategy to play in
 	else default_bias: {
-		card = bias (legal, len, bsuit);
-		goto done;
+		i = bias (legal, len, bsuit);
 	}
-		
+
+	card = &index (deckr.deck, bot->cards[i], deckr.cards);
+	csuit = csuit_bias (card, bsuit);
+
 done:
-	return card;
+	return i;
 }
-// -- bot stack bottom -- //
 
-void bot_play (Cmd* cmd, uint boti) {
-	Player* bot = &playerbuf[boti];
-	Legal* blegal = legalbuf[boti-1];
-
-	uint* bcards = bot->cards;
-
+static uint poplegal (Player* bot, Legal* botlegal) {
 	Deck* deck = deckr.deck;
 	uint cards = deckr.cards;
 
+	uint* bcards = bot->cards;
 	uint cardi = bot->cardi;
-	uint i = 0, j = 0;
 
-	// populate `legalbuf'
-	for (; i < cardi; i++) {
+	uint j = 0;
+
+	for (uint i = 0; i < cardi; i++) {
 		Card card = index (deck, bcards[i], cards);
 
 		if (legal (card, *top)) {
-			blegal[j].suit = card.suit;
-			blegal[j].number = card.number;
-			blegal[j].ci = i;
+			botlegal[j].suit = card.suit;
+			botlegal[j].number = card.number;
+			botlegal[j].ci = i;
 			j++;
 			adjust_legalbuf (bot, j);
 		}
 	}
 
+	return j;
+}
+// -- bot stack bottom -- //
+
+void bot_play (Cmd* cmd, uint boti) {
+	Player* bot = &playerbuf[boti];
+	Legal* botlegal = legalbuf[boti-1];
+
+	uint j = poplegal (bot, botlegal);
+
+	#if DEBUG == 1
+	for (uint i = 0; i < j; i++) {
+				 Card debugcard = index (deckr.deck,
+																 cmd->p->cards[botlegal[i].ci],
+																 deckr.cards);
+				 fprintf (stderr, "[bot_play::legal] \n lcard.number = %d \n lcard.suit = %d \n",
+									(int) debugcard.number,
+									(int) debugcard.suit);
+	}
+	#endif
+
 	// apply action
-	if (!j) action_take: {
+	if (!j) bot_take: {
 		cmd->ac.cmd = TAKE;
 		cmd->status = (acc? CACC: COK);
 		cmd->ac.am = 1;
 	}
 	else {
-		Card* card = bot_choose_card (bot, blegal, j);
-		
-		if (! card) {
-			goto action_take;
+		uint i = bot_choose_card (bot, botlegal, j);
+
+		if (i == -1u) {
+			goto bot_take;
 		}
 
 		cmd->ac.cmd = PLAY;
 		cmd->status = COK;
 
 		// we have to play like a human
- 		cmd->ac.target = (card - deckbase) + 1;
+ 		cmd->ac.target = i + 1;
 	}
 
-	// TODO: make this configurable via gpld.argparser
 	usleep (PLAY_INTERVAL);
+
+	#if DEBUG == 1
+	Card debugcard = index (deckr.deck,
+													cmd->p->cards[cmd->ac.target-1],
+													deckr.cards);
+	fprintf (stderr, "\n[bot_play::chosen] \n pcard.number = %d \n pcard.suit = %d \n",
+					 (int) debugcard.number,
+					 (int) debugcard.suit);
+  #endif
 }
 
 void bot_init (uint boti) {
