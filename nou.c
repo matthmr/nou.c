@@ -18,6 +18,10 @@ bool legal (Card playing, Card played) {
 	Suit tsuit = played.suit, psuit = playing.suit;
 	Number tnum = played.number, pnum = playing.number;
 
+	if (tnum == _Q && acc) {
+		return (pnum == _B || ((pnum == _Q || pnum == _J) && psuit == tsuit));
+	}
+
 	if (tnum == _C) {
 ccsuit:
 		return (psuit == csuit || psuit == SPECIAL);
@@ -108,7 +112,7 @@ static Gstat reshuffle (uint* cardi, Card* __top) {
 
 	(void) sort ();
 
-	shuffle (&deckr, deckr.played);
+	shuffle (&deckr, deckr.cards, deckr.played);
 	deckr.played = 1;
 
 	*cardi = deckr.cards - (deckr.playing + deckr.played);
@@ -167,6 +171,7 @@ Gstat take (Player* p, uint am, bool always) {
 		goto takeloop;
 	}
 
+#if DEBUG != 1
 	// UPDATE (20220908): I decided to make special cards an exception to this rule
 	for (uint i = 0; i < pcardi; i++) {
 		pcard = index (deck, pcards[i], cards);
@@ -178,11 +183,14 @@ Gstat take (Player* p, uint am, bool always) {
 			}
 		}
 	}
+#endif
 
 takeloop:
 	for (uint _ = 0; _ < am; _++) {
 takecard:
 		card = take_from_stack ();
+
+#if DEBUG != 1
 		if (!always && (card && top) && legal (*card, *top)) {
 			alegal++;
 			
@@ -194,6 +202,8 @@ takecard:
 				EMSGCODE (E3LEGAL);
 			}
 		}
+#endif
+
 		if (!card) {
 			Gstat reshufflestat = reshuffle (&cardi, top);
 			if (reshufflestat != GOK) {
@@ -270,7 +280,7 @@ static void gameinit (Deckr* deckr, uint botn) {
 	uint t = time (NULL);
 	seed = *(uint*) &botn;
 	seed = (seeded (t) << 4) ^ t;
-	shuffle (deckr, deckr->cards);
+	shuffle (deckr, deckr->cards, deckr->cards);
 	popplayers (deckr, botn, deckr->cards);
 
 	(void) drawfirstcard ();
@@ -285,7 +295,7 @@ static void gameinit (Deckr* deckr, uint botn) {
 
 typedef struct {
 	Gstat master;
-	enum {_SLAVE_ACC = 1, } slave;
+	enum {_SLAVE_ACC = 1, _SLAVE_ACC_DRAW = 0, } slave;
 } GstatUpdate;
 
 static GstatUpdate update_game (Cmd* cmd) {
@@ -293,10 +303,10 @@ static GstatUpdate update_game (Cmd* cmd) {
 	GstatUpdate ret = {0};
 
 	// accumulative cards take without asking
-	if (cmd->status == CACC) {
+	if (cmd->status == CACC || cmd->status == CACCDRAW) {
 		uint _acc = acc;
 		acc = 0;
-		ret.slave = _SLAVE_ACC;
+		ret.slave = cmd->status == CACC? _SLAVE_ACC: _SLAVE_ACC_DRAW;
 		ret.master = take (cmd->p, _acc, ALWAYS);
 		return ret;
 	}

@@ -12,7 +12,7 @@
 //#  undef ERRMSGLEN
 
 #  ifndef ERRMSGLEN
-#    error `ERRMSGLEN' is not defined yet. Did you run ./configure?
+#    error ERRMSGLEN is not defined yet. Did you run ./configure?
 #  endif
 
 #  define ITER(x,y,z,w) for (; (z) < (w); (z)++, (x) = (y)[(z)])

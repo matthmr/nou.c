@@ -27,7 +27,7 @@ uint seed, reseed;
 
 static Player** playerringbuf;
 
-static uint sort_vacanti (uint* playing, uint* playeroff) {
+static uint find_vacanti (uint* playing, uint* playeroff) {
 	Deck* deck = deckr.deck;
 	uint cards = deckr.cards;
 
@@ -58,7 +58,8 @@ static uint sort_vacanti (uint* playing, uint* playeroff) {
 	return lvacant_i;
 }
 
-static void _sort (uint i, uint* playing, uint* playeroff) {
+#define MARKVACANT(x,y) (!(x) && !(y))
+static void sort_deck (uint i, uint* playing, uint* playeroff) {
 	Deck* deck = deckr.deck;
 	uint cards = deckr.cards;
 
@@ -69,13 +70,12 @@ static void _sort (uint i, uint* playing, uint* playeroff) {
 	uint _playing = *playing;
 	uint playeri = 0;
 
-	for (uint vacant_i = 0; i < cards; i++) {
+	for (; i < cards; i++) {
 		card = &index (deck, i, cards);
 		owner = card->owner;
 
 		// found a vacant card: mark it
-		if (!owner && !vacant) {
-			vacant_i = i;
+		if (MARKVACANT (owner, vacant)) {
 			vacant = card;
 		}
 
@@ -85,7 +85,7 @@ static void _sort (uint i, uint* playing, uint* playeroff) {
 
 			// ... if there is a vacant card before it, recompute the index then swap ...
 			if (vacant) {
-				playeri = (card->owner - player);
+				playeri = (owner - player);
 				owner->cards[playeroff[playeri]] = (vacant - deckbase);
 				playeroff[playeri]++;
 
@@ -93,8 +93,12 @@ static void _sort (uint i, uint* playing, uint* playeroff) {
 				*card = *vacant;
 				*vacant = tmp;
 
-				vacant = NULL;
-				i = vacant_i;
+				if (vacant != decktop && !(vacant+1)->owner) {
+					vacant++;
+				}
+				else {
+					vacant = NULL;
+				}
 			}
 
 			// ... otherwise, save the index as normal
@@ -126,13 +130,14 @@ int sort (void) {
 		playeroff[_] = 0;
 	}
 
-	lvacant_i = sort_vacanti (&playing, (uint*)playeroff);
+	lvacant_i = find_vacanti (&playing, (uint*)playeroff);
 
+	// there are no vacant cards left
 	if (lvacant_i == -1u) {
 		return NOCARDS;
 	}
 
-	_sort (lvacant_i, &playing, (uint*)playeroff);
+	sort_deck (lvacant_i, &playing, (uint*)playeroff);
 
 	// NOTE: this assumes the last index is vacant
 	while (!index (deck, stackbase_i, cards).owner) {
@@ -253,22 +258,25 @@ uint seeded (uint n) {
 	return ret;
 }
 
-static void swap (Deck* deck, uint i, uint pcards) {
-	uint _i = seeded (pcards - i) + i;
+static void swap (Deck* deck, uint i, uint cards, uint pcards) {
+	uint swp = (cards - pcards) + i;
+	uint _swp = seeded (cards - swp) + swp;
 
-	if (_i == i) {
+	if (swp == _swp) {
 		return;
 	}
 
-	Card tmp = index (deck, i, pcards);
-	index (deck, i, pcards) = index (deck, _i, pcards);
-	index (deck, _i, pcards) = tmp;
+	Card tmp = index (deck, swp, cards);
+	index (deck, swp, cards) = index (deck, _swp, cards);
+	index (deck, _swp, cards) = tmp;
 }
 
-void shuffle (Deckr* deckr, uint pcards) {
+void shuffle (Deckr* deckr, uint cards, uint pcards) {
 	Deck* deck = deckr->deck;
+
+	// loop through the playable cards
 	for (uint i = 0; i < pcards; i++) {
-		swap (deck, i, pcards);
+		swap (deck, i, cards, pcards);
 	}
 }
 

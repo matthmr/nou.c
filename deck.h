@@ -66,7 +66,7 @@ uint reseedr (uint);
 uint seedr (uint);
 uint seeded (uint);
 
-void shuffle (Deckr*, uint);
+void shuffle (Deckr*, uint, uint);
 
 void popplayers (Deckr*, uint, uint);
 void popdeck (Deckr*);

@@ -357,7 +357,8 @@ static CmdStat cmdparse (Cmd* cmd, enum err* ecode) {
 			ECODE (EINVALIDCMD);
 		}
 		else {
-			return CACC;
+			// NOTE: so that `:' still updates the display correclty
+			return CACCDRAW;
 		}
 	}
 

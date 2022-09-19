@@ -469,7 +469,7 @@ void error_display (const char* msg) {
 
 void info_display (const char* msg, uint infon) { }
 
-void update_display (Cmd* cmd, Player* p, bool acc) {
+void update_display (Cmd* cmd, Player* p, bool statslave) {
 	static uint _cardn = CARDN;
 
 	Player* pplayer = cmd->p;
@@ -477,7 +477,7 @@ void update_display (Cmd* cmd, Player* p, bool acc) {
 	uint pid = pplayer - player;
 
 	// account for the newline: C-d handle is done at `cmdread'-time
-	if (ptag == PLAYER && !acc) {
+	if (ptag == PLAYER && !statslave) {
 		write (1, MSG (MOVUP0 ("1")));
 	}
 
@@ -575,8 +575,10 @@ void end_as_win (Player* playerwin) {
 	char buf[1+MAXCARDSLEN+7] = {0};
 	char* _buf = buf;
 
+	uint win = (playerwin - player);
+
 	_buf = _str_embed_draw (_buf, "P");
-	_buf = _itoa_draw (_buf, playerwin - &playerbuf[0]);
+	_buf = _itoa_draw (_buf, win);
 	_buf = _str_embed_draw (_buf, " WINS!");
 
 	write (1, MSG (ERASE2ENDLINE));

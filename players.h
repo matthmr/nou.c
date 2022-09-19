@@ -26,6 +26,7 @@ typedef enum {
 	CQUIT,
 	CHELP,
 	CACC,
+	CACCDRAW, // NOTE: so that `:' still updates the display correclty
 } CmdStat;
 
 enum cmd {
