@@ -56,8 +56,6 @@ void init_display (uint);
 void fix_display (void);
 void update_display (Cmd*, Player*, bool);
 
-int draw_help_msg (Cmd*);
-
 void end_as_win (Player*);
 void end_as_draw (void);
 

@@ -508,65 +508,6 @@ void fix_display (void) {
 	//draw_command_prompt (display.prompt);
 }
 
-#define HELPLINES 23
-
-static void render_help (void) {
-	char buf[HELPLINES*4*2];
-	char* _buf = buf;
-
-	for (uint i = 0; i < HELPLINES; i++) {
-		_buf = _str_embed_draw (_buf, MOVDOWN0 ("1"));
-		_buf = _str_embed_draw (_buf, ERASE2ENDLINE);
-	}
-
-	write (1, buf, (_buf - buf));
-	_buf = buf;
-
-	for (uint i = 0; i < HELPLINES; i++) {
-		_buf = _str_embed_draw (_buf, MOVUP0 ("1"));
-	}
-
-	write (1, buf, (_buf - buf));
-}
-
-static void clear_help (Cmd* cmd) {
-	char buf[HELPLINES*4*2];
-	char* _buf = buf;
-
-	uint pid = cmd->p - player;
-
-	// clean up
-	for (uint i = 0; i < HELPLINES; i++) {
-		_buf = _str_embed_draw (_buf, MOVUP0 ("1"));
-		_buf = _str_embed_draw (_buf, ERASE2ENDLINE);
-	}
-
-	write (1, buf, (_buf - buf));
-
-	draw_stack (pid, true);
-}
-
-int draw_help_msg (Cmd* cmd) {
-	// render the help message
-	render_help ();
-
-	char buf[2];
-	buf[0] = buf[1] = 0;
-
-	write (1, fullmsg, fullmsgsize);
-	read (0, buf, sizeof (buf));
-
-	// little-endian spiel
-	short _buf = (buf[1] << 8) | buf[0];
-
-	// TODO: rework this: ..
-	// clear the message preemptively; if erroed, this function
-	// will be called again
-	clear_help (cmd);
-	
-	return (_buf != 0x000a);
-}
-
 void reverse_draw_players (void) {
 	draw_players_entry_reverse ^= true;
 }
