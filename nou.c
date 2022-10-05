@@ -397,7 +397,6 @@ read:
 			switch (cmd.status) {
 			case CINVALID: goto read;
 			case CQUIT: goto done;
-			case CHELP: draw_help_msg (&cmd); goto read;
 			}
 		}
 		else {

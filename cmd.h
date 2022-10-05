@@ -4,7 +4,7 @@
 #  include "cli.h"
 #  include "players.h"
 
-#  define CMDHELP 0x3f0a
+//#  define CMDHELP 0x3f0a
 #  define CMDQUIT 0x710a
 #  define CMDNONE 0x0a00
 
@@ -67,8 +67,6 @@ enum info {
 
 extern const char* errmsg[];
 extern const char* infomsg[];
-extern const char fullmsg[];
-extern const uint fullmsgsize;
 
 extern int MSGERRCODE, MSGINFOCODE;
 

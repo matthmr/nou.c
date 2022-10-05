@@ -34,27 +34,6 @@ const char* infomsg[] = {
 	//[ISUITS] = "spades: `s', clubs: `c', hearts: `h', diamonds: `d'",
 };
 
-const char fullmsg[] = \
-	"\nThe game is similar to UNO. The rules can be thoroughly read in `nou.1' or at the project's `README.md'\n\n"
-	"You have four prefixes: (`.' : take), (`,' : play), (` ' : legal play) & (`:' : ignore legal for accumulative)\n\n"
-	"  - `.': the `.' prefix is `.<n>' where `<n>' is an amount of cards to take. If empty, it will\n"
-	"         be assumed to be 1\n"
-	"  - `,': the `,' prefix is `,<n>' or' where `<n>' is the id of the card to play (the id of the card\n"
-	"         the number which prefixes the card of the `P0' player)\n"
-	"  - ` ': the ` ' (empty space) prefix is ` '. It will play the only legal move possible, otherwise error\n"
-	"         if there are more than one legal move to play\n"
-	"  - `:': the `:' prefix is `:'. It will ignore legal counteracts for accumulative cards and resolute their\n"
-	"         actions\n\n"
-	"You can also play a card by passing in an unique suit or number in your deck. For example, to play a\n"
-	"2 of hearts you could run `2', `2h' or `h' if any of those fields uniquely identified your card.\n"
-	"Suits are passed by initial: [s]pades, [c]lubs, [h]earts, [d]iamonds\n\n"
-	"Playing with a special card requires the suit to be passed after the number of the special card, for\n"
-	"example: `Ch', plays the [C] card asking for a card of [h]earts. This also applies if the card is\n"
-	"prefixed by `,' or ` ' is a special card\n\n"
-	"Hitting enter on an empty prompt repeats the last command, if there is one\n\n"
-	"(Press ENTER to go back to the game) ";
-const uint fullmsgsize = sizeof (fullmsg);
-
 int MSGERRCODE = EOK, MSGINFOCODE = IOK;
 
 static inline Number findcard_number (char buf[2]) {
@@ -163,10 +142,6 @@ static CmdStatEasy cmdparse_easyones (char* buf, Cmd* lastcmd, Cmd* cmd, enum er
 	easy |= __little_endian;
 
 	switch (easy) {
-	case CMDHELP:
-		ret.master = CHELP;
-		ret.slave = _SLAVE_RETURN;
-		break;
 	case CMDQUIT:
 		ret.master = CQUIT;
 		ret.slave = _SLAVE_RETURN;
